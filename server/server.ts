@@ -52,6 +52,10 @@ function reviewItems(body: unknown): db.ReviewItem[] {
     confidence: ['high', 'medium', 'low'].includes(it?.confidence) ? it.confidence : undefined,
     quantityIsEstimate: it?.quantityIsEstimate === true,
     notes: str(it?.notes),
+    target:
+      Number.isInteger(it?.target?.partId) && ['add', 'set'].includes(it?.target?.mode)
+        ? { partId: it.target.partId, mode: it.target.mode }
+        : undefined,
   }));
 }
 

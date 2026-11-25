@@ -62,3 +62,21 @@ test('migration 2 moves hardware out of "other"', async () => {
   expect((await partScans(db, screw.id)).map((x) => x.quantity).sort()).toEqual([30, 5]); // history kept
 });
 
+test('a review row can add to, or recount, a chosen existing part', async () => {
+  const db = memoryDb();
+  await migrate(db);
+  await saveScan(db, await analyzedScan(db, 'scans/a.jpg'), [{ name: '4x4 membrane matrix keypad', category: 'switch', value: null, package: null, quantity: 1 }]);
+  const [keypad] = await listParts(db, '');
+  const worded = { name: 'Membrane keypad 4x4', category: 'switch' as const, value: null, package: null };
+
+  await saveScan(db, await analyzedScan(db, 'scans/b.jpg'), [{ ...worded, quantity: 2, target: { partId: keypad.id, mode: 'add' } }]);
+  expect((await getPart(db, keypad.id))!.quantity).toBe(3);
+  await saveScan(db, await analyzedScan(db, 'scans/c.jpg'), [{ ...worded, quantity: 5, target: { partId: keypad.id, mode: 'set' } }]);
+  expect((await getPart(db, keypad.id))!.quantity).toBe(5);
+  expect(await listParts(db, '')).toHaveLength(1); // never a second keypad
+  expect(await partScans(db, keypad.id)).toHaveLength(3);
+  await expect(
+    saveScan(db, await analyzedScan(db, 'scans/d.jpg'), [{ ...worded, quantity: 1, target: { partId: 999, mode: 'add' } }]),
+  ).rejects.toThrow('was deleted');
+});
+

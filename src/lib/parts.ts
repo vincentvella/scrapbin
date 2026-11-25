@@ -99,3 +99,35 @@ export function saveSummary<T extends { name: string; quantity: number }>(rows: 
   const units = items.reduce((n, r) => n + r.quantity, 0);
   return { items, label: items.length ? `Save ${plural(items.length, 'kind')} · ${plural(units, 'part')}` : 'Nothing to save' };
 }
+
+type PartLike = { category: string; name: string; value?: string | null; package?: string | null };
+
+const STOP = new Set(['with', 'and', 'the', 'for', 'of', 'style', 'type', 'pcs', 'module']);
+const words = (s: string) => new Set(s.toLowerCase().split(/[^a-z0-9.]+/).filter((w) => w.length > 1 && !STOP.has(w)));
+
+/** The inventory part this item will add to automatically (same key), if any. */
+export const exactMatch = <P extends PartLike>(item: PartLike, inventory: P[]) => {
+  const key = partKey(item);
+  return inventory.find((p) => partKey(p) === key) ?? null;
+};
+
+/**
+ * Inventory parts that are probably the same thing worded differently ("Membrane keypad 4x4" vs
+ * "4x4 membrane matrix keypad"): same category, overlapping name words, and no conflicting value.
+ */
+export function similarParts<P extends PartLike>(item: PartLike, inventory: P[], limit = 3): P[] {
+  const key = partKey(item);
+  const a = words(item.name);
+  return inventory
+    .filter((p) => p.category === item.category && partKey(p) !== key)
+    .filter((p) => !(norm(item.value) && norm(p.value) && norm(item.value) !== norm(p.value))) // 1kΩ is not 10kΩ
+    .map((p) => {
+      const b = words(p.name);
+      const shared = [...a].filter((w) => b.has(w)).length;
+      return { p, score: shared / (a.size + b.size - shared || 1) };
+    })
+    .filter((x) => x.score >= 0.4)
+    .sort((x, y) => y.score - x.score)
+    .slice(0, limit)
+    .map((x) => x.p);
+}

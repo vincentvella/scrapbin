@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import { parseDetectedParts, partKey, saveSummary } from './parts';
+import { exactMatch, parseDetectedParts, partKey, saveSummary, similarParts } from './parts';
 
 test('partKey treats spelling variants as the same part', () => {
   const a = partKey({ category: 'resistor', name: 'Resistor', value: '10kΩ', package: 'Axial' });
@@ -48,4 +48,19 @@ test('hardware matches on type + size, not wording or material', () => {
   expect(k('Hex nut', 'M2')).not.toBe(k('Flat washer', 'M2')); // same size, different part
   expect(k('Socket cap screw', 'M2×8mm')).not.toBe(k('Socket cap screw', 'M2×10mm'));
   expect(k('Hex bolt', null)).not.toBe(k('Carriage bolt', null)); // no size: fall back to the name
+});
+
+test('similarParts finds the same thing worded differently, never a different value', () => {
+  const inv = [
+    { id: 1, category: 'switch', name: '4x4 membrane matrix keypad', value: null, package: null },
+    { id: 2, category: 'switch', name: 'Tactile push button switch', value: null, package: '6x6mm THT' },
+    { id: 3, category: 'resistor', name: 'Metal film resistor', value: '1kΩ', package: null },
+    { id: 4, category: 'resistor', name: 'Metal film resistor', value: '10kΩ', package: null },
+  ];
+  expect(similarParts({ category: 'switch', name: 'Membrane keypad 4x4' }, inv).map((p) => p.id)).toEqual([1]);
+  expect(similarParts({ category: 'switch', name: 'Metal pushbutton switch' }, inv)).toEqual([]);
+  // a 10k resistor exactly matches part 4 (auto-merges) and is not "similar" to the 1k
+  const r10k = { category: 'resistor', name: 'Resistor, metal film', value: '10K ohm' };
+  expect(similarParts(r10k, inv).map((p) => p.id)).toEqual([4]);
+  expect(exactMatch({ category: 'resistor', name: 'Metal film resistor', value: '10K ohm' }, inv)?.id).toBe(4);
 });

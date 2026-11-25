@@ -27,7 +27,10 @@ export type Scan = {
 };
 
 export type ReviewItem = Pick<DetectedPart, 'name' | 'category' | 'value' | 'package' | 'quantity'> &
-  Partial<Pick<DetectedPart, 'confidence' | 'quantityIsEstimate' | 'notes'>>;
+  Partial<Pick<DetectedPart, 'confidence' | 'quantityIsEstimate' | 'notes'>> & {
+    /** Save into this existing part instead of matching by key: add to its count, or replace it (a recount). */
+    target?: { partId: number; mode: 'add' | 'set' };
+  };
 
 const MIGRATIONS: ((db: SQLiteDatabase) => Promise<void>)[] = [
   (db) =>
@@ -177,6 +180,16 @@ export async function saveScan(db: SQLiteDatabase, scanId: number, items: Review
     const ts = now();
     for (const it of items) {
       if (!it.name.trim() || it.quantity < 1) continue;
+      if (it.target) {
+        const sqlQty = it.target.mode === 'set' ? '?' : 'quantity + ?';
+        const r = await db.runAsync(`UPDATE parts SET quantity = ${sqlQty}, updated_at = ? WHERE id = ?`, it.quantity, ts, it.target.partId);
+        if (!r.changes) throw new Error(`A part you matched “${it.name}” to was deleted. Review the scan again.`);
+        await db.runAsync(
+          `INSERT INTO scan_items (scan_id, part_id, quantity, confidence, quantity_is_estimate) VALUES (?, ?, ?, ?, ?)`,
+          scanId, it.target.partId, it.quantity, it.confidence ?? null, it.quantityIsEstimate ? 1 : 0,
+        );
+        continue;
+      }
       const row = await db.getFirstAsync<{ id: number }>(
         `INSERT INTO parts (key, name, category, value, package, quantity, notes, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
