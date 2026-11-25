@@ -67,3 +67,13 @@ export function parseDetectedParts(raw: string): DetectedPart[] {
     ];
   });
 }
+
+// Thousands by hand: Basalt's Hermes may be built without Intl.
+const plural = (n: number, word: string) => `${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')} ${word}${n === 1 ? '' : 's'}`;
+
+/** The rows a save will actually store, and the button label that counts them (kinds and units). */
+export function saveSummary<T extends { name: string; quantity: number }>(rows: T[]) {
+  const items = rows.filter((r) => r.name.trim() && r.quantity > 0);
+  const units = items.reduce((n, r) => n + r.quantity, 0);
+  return { items, label: items.length ? `Save ${plural(items.length, 'kind')} · ${plural(units, 'part')}` : 'Nothing to save' };
+}

@@ -12,7 +12,7 @@ import { Button, Chip, DANGER, Stepper } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { getScan, saveScan, setScanAnalyzed, setScanFailed, type ReviewItem, type Scan } from '@/lib/db';
-import { parseDetectedParts, type Confidence } from '@/lib/parts';
+import { parseDetectedParts, saveSummary, type Confidence } from '@/lib/parts';
 import { photoBase64, photoUri } from '@/lib/photos';
 import { getApiKey, getModel } from '@/lib/settings';
 import { analyzePhoto, describeError } from '@/lib/vision';
@@ -87,7 +87,7 @@ export default function ReviewScreen() {
   }
 
   async function save() {
-    const items = rows.filter((r) => r.name.trim() && r.quantity > 0);
+    const { items } = saveSummary(rows);
     if (!items.length) {
       Alert.alert('Nothing to save', 'Every row is empty or set to zero.');
       return;
@@ -101,6 +101,8 @@ export default function ReviewScreen() {
       setSaving(false);
     }
   }
+
+  const summary = saveSummary(rows);
 
   if (!scan) return <ThemedView style={styles.flex} />;
 
@@ -136,7 +138,7 @@ export default function ReviewScreen() {
       </ScrollView>
       {scan.status === 'analyzed' && !analyzing && (
         <View style={[styles.footer, { paddingBottom: insets.bottom + Spacing.two }]}>
-          <Button title={`Save ${rows.length} to inventory`} busy={saving} disabled={!rows.length} onPress={save} />
+          <Button title={summary.label} busy={saving} disabled={!summary.items.length} onPress={save} />
         </View>
       )}
     </ThemedView>

@@ -7,7 +7,7 @@ import { Button, Chip, DANGER, Stepper } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { ReviewItem, Scan } from '@/lib/db';
-import { parseDetectedParts, type Confidence } from '@/lib/parts';
+import { parseDetectedParts, saveSummary, type Confidence } from '@/lib/parts';
 
 import type { Api } from './server';
 
@@ -59,7 +59,7 @@ export function ScanPanel({ api, id, photoUrl, onChanged, onDone }: Props) {
   const update = (rowId: number, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.rowId === rowId ? { ...r, ...patch } : r)));
 
   async function save() {
-    const items = rows.filter((r) => r.name.trim() && r.quantity > 0);
+    const { items } = saveSummary(rows);
     if (!items.length) return Alert.alert('Nothing to save', 'Every row is empty or set to zero.');
     setSaving(true);
     try {
@@ -77,6 +77,8 @@ export function ScanPanel({ api, id, photoUrl, onChanged, onDone }: Props) {
       { text: 'Delete', style: 'destructive', onPress: () => api(`/scans/${id}`, { method: 'DELETE' }).then(onDone) },
     ]);
   }
+
+  const summary = saveSummary(rows);
 
   if (!scan) return null;
 
@@ -135,7 +137,7 @@ export function ScanPanel({ api, id, photoUrl, onChanged, onDone }: Props) {
                 kind="secondary"
                 onPress={() => setRows((rs) => [...rs, { rowId: nextRowId++, name: '', category: 'other', value: null, package: null, quantity: 1 }])}
               />
-              <Button title={`Save ${rows.length} to inventory`} busy={saving} disabled={!rows.length} onPress={save} />
+              <Button title={summary.label} busy={saving} disabled={!summary.items.length} onPress={save} />
             </View>
           </>
         )}

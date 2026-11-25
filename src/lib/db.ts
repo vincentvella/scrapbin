@@ -141,6 +141,9 @@ export const unsavedScans = (db: SQLiteDatabase) =>
 /** Add reviewed items to the inventory in one transaction: matching parts gain quantity, new ones are created. */
 export async function saveScan(db: SQLiteDatabase, scanId: number, items: ReviewItem[]) {
   await db.withTransactionAsync(async () => {
+    // Saving twice (double click, a stale window) would add every count again.
+    const scan = await db.getFirstAsync<{ status: ScanStatus }>('SELECT status FROM scans WHERE id = ?', scanId);
+    if (scan?.status !== 'analyzed') throw new Error(scan ? 'This scan is already in your inventory.' : 'Scan not found.');
     const ts = now();
     for (const it of items) {
       if (!it.name.trim() || it.quantity < 1) continue;
