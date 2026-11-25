@@ -15,7 +15,14 @@ No account and no server: data stays on the device, and you bring your own model
 
 ## Develop
 
+Scrapbin needs a development build (it uses native modules), not Expo Go.
+
 ```sh
 bun install
-bun run ios      # or: bun run android
+bun run ios        # or: bun run android — builds and launches the dev build
+bun run test       # unit + database tests (bun test, runs the real SQL on bun:sqlite)
+bun run typecheck
+bun run lint
 ```
+
+Paste an Anthropic API key in the app's Settings tab before scanning.

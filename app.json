@@ -35,7 +35,16 @@
           "imageWidth": 76
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Scrapbin uses the camera to photograph your parts so it can count them.",
+          "photosPermission": "Scrapbin reads photos you choose so it can count the parts in them.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
