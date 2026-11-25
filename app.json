@@ -9,7 +9,8 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.vellapps.scrapbin"
+      "bundleIdentifier": "com.vellapps.scrapbin",
+      "appleTeamId": "T7Z4ML4MH6"
     },
     "android": {
       "adaptiveIcon": {
