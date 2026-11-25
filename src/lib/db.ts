@@ -1,7 +1,7 @@
 // All storage goes through this module so the desktop (Basalt) build can swap expo-sqlite out later.
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import { partKey, type Category, type DetectedPart } from './parts';
+import { hardwareType, partKey, type Category, type DetectedPart } from './parts';
 
 export type Part = {
   id: number;
@@ -63,26 +63,44 @@ const MIGRATIONS: ((db: SQLiteDatabase) => Promise<void>)[] = [
       );
       CREATE INDEX scan_items_part ON scan_items(part_id);
     `),
-  // 2: screws, nuts etc. used to land in "other"; move them to the new "hardware" category.
+  // 2: screws, nuts etc. used to land in "other": move them to "hardware", which matches on type + size.
   async (db) => {
-    const rows = await db.getAllAsync<Part>(`SELECT * FROM parts WHERE category = 'other'`);
-    for (const p of rows) {
-      if (!HARDWARE.test(p.name)) continue;
-      const moved = { ...p, category: 'hardware' as const };
-      // A hardware part with the same key already exists only if the user made one by hand; leave this one alone then.
-      await db.runAsync(`UPDATE OR IGNORE parts SET category = 'hardware', key = ? WHERE id = ?`, partKey(moved), p.id);
+    const other = await db.getAllAsync<Part>(`SELECT * FROM parts WHERE category = 'other'`);
+    for (const p of other) {
+      if (hardwareType(p.name)) await db.runAsync(`UPDATE parts SET category = 'hardware' WHERE id = ?`, p.id);
     }
+    await rekeyMerging(db, 'hardware');
   },
 ];
 
-const HARDWARE = /screw|bolt|nut\b|washer|standoff|spacer|rivet|heat.?shrink|zip.?tie|\bwire\b/i;
+/** Recompute keys for one category; parts that now share a key merge (quantities add, scan history moves). */
+async function rekeyMerging(db: SQLiteDatabase, category: Category) {
+  const rows = await db.getAllAsync<Part>(`SELECT * FROM parts WHERE category = ? ORDER BY id`, category);
+  await db.runAsync(`UPDATE parts SET key = 'rekey:' || id WHERE category = ?`, category); // free the old keys
+  const keepers = new Map<string, number>();
+  for (const p of rows) {
+    const key = partKey(p);
+    const keep = keepers.get(key);
+    if (keep === undefined) {
+      keepers.set(key, p.id);
+      await db.runAsync(`UPDATE parts SET key = ? WHERE id = ?`, key, p.id);
+      continue;
+    }
+    await db.runAsync(`UPDATE parts SET quantity = quantity + ?, notes = IFNULL(notes, ?) WHERE id = ?`, p.quantity, p.notes, keep);
+    await db.runAsync(`UPDATE scan_items SET part_id = ? WHERE part_id = ?`, keep, p.id);
+    await db.runAsync(`DELETE FROM parts WHERE id = ?`, p.id);
+  }
+}
 
 export async function migrate(db: SQLiteDatabase) {
   await db.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   for (let v = row?.user_version ?? 0; v < MIGRATIONS.length; v++) {
-    await MIGRATIONS[v](db);
-    await db.execAsync(`PRAGMA user_version = ${v + 1}`);
+    // One transaction per migration: a failure leaves the data as it was, never half-converted.
+    await db.withTransactionAsync(async () => {
+      await MIGRATIONS[v](db);
+      await db.execAsync(`PRAGMA user_version = ${v + 1}`);
+    });
   }
 }
 

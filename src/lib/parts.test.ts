@@ -40,3 +40,12 @@ test('saveSummary counts units, and only the rows a save keeps', () => {
   expect(saveSummary([{ name: 'NE555', quantity: 1 }]).label).toBe('Save 1 kind · 1 part');
   expect(saveSummary([]).label).toBe('Nothing to save');
 });
+
+test('hardware matches on type + size, not wording or material', () => {
+  const k = (name: string, value: string | null, pkg: string | null = null) => partKey({ category: 'hardware', name, value, package: pkg });
+  expect(k('Socket cap screw', 'M2×8mm')).toBe(k('Socket head cap screw', 'M2 x 8', 'black 12.9 alloy steel'));
+  expect(k('Heat shrink tubing', '8.0mm')).toBe(k('Heat-shrink tube', '8mm'));
+  expect(k('Hex nut', 'M2')).not.toBe(k('Flat washer', 'M2')); // same size, different part
+  expect(k('Socket cap screw', 'M2×8mm')).not.toBe(k('Socket cap screw', 'M2×10mm'));
+  expect(k('Hex bolt', null)).not.toBe(k('Carriage bolt', null)); // no size: fall back to the name
+});

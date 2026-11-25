@@ -50,10 +50,15 @@ test('migration 2 moves hardware out of "other"', async () => {
   await saveScan(db, s, [
     { name: 'Socket head cap screw', category: 'other', value: 'M2×8mm', package: null, quantity: 30 },
     { name: 'Hex nut', category: 'other', value: 'M2', package: null, quantity: 10 },
+    { name: 'Socket cap screw', category: 'other', value: 'M2 x 8mm', package: null, quantity: 5 },
     { name: 'Mystery blob', category: 'other', value: null, package: null, quantity: 1 },
   ]);
   await migrate(db);
-  const cats = Object.fromEntries((await listParts(db, '')).map((p) => [p.name, p.category]));
+  const parts = await listParts(db, '');
+  const cats = Object.fromEntries(parts.map((p) => [p.name, p.category]));
   expect(cats).toEqual({ 'Socket head cap screw': 'hardware', 'Hex nut': 'hardware', 'Mystery blob': 'other' });
+  const screw = parts.find((p) => p.name === 'Socket head cap screw')!;
+  expect(screw.quantity).toBe(35); // the two spellings merged
+  expect((await partScans(db, screw.id)).map((x) => x.quantity).sort()).toEqual([30, 5]); // history kept
 });
 
