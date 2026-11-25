@@ -1,33 +1,9 @@
-import { Database } from 'bun:sqlite';
 import { expect, test } from 'bun:test';
-import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { openDb } from '../../server/sqlite';
 import { createScan, getPart, listParts, migrate, partScans, saveScan, unsavedScans, updatePart } from './db';
 
-// Just enough of expo-sqlite's async API, backed by bun:sqlite, to run the real SQL.
-function memoryDb() {
-  const d = new Database(':memory:');
-  const db = {
-    execAsync: async (s: string) => void d.exec(s),
-    runAsync: async (s: string, ...p: any[]) => {
-      const r = d.query(s).run(...p);
-      return { lastInsertRowId: Number(r.lastInsertRowid), changes: r.changes };
-    },
-    getFirstAsync: async (s: string, ...p: any[]) => d.query(s).get(...p) ?? null,
-    getAllAsync: async (s: string, ...p: any[]) => d.query(s).all(...p),
-    withTransactionAsync: async (fn: () => Promise<void>) => {
-      d.exec('BEGIN');
-      try {
-        await fn();
-        d.exec('COMMIT');
-      } catch (e) {
-        d.exec('ROLLBACK');
-        throw e;
-      }
-    },
-  };
-  return db as unknown as SQLiteDatabase;
-}
+const memoryDb = () => openDb(':memory:');
 
 const resistor = { name: 'Resistor', category: 'resistor' as const, value: '10kΩ', package: 'axial', quantity: 20 };
 

@@ -19,6 +19,8 @@
   ],
   "exclude": [
     "**/*.test.ts",
-    "scripts"
+    "scripts",
+    "server",
+    "desktop"
   ]
 }

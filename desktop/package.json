@@ -1,0 +1,30 @@
+{
+  "name": "desktop",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "expo": "~58.0.26",
+    "expo-status-bar": "~58.0.5",
+    "react": "19.3.0",
+    "react-native": "0.88.1",
+    "basalt-core": "^0.2.9",
+    "basalt-appkit": "^0.2.9",
+    "basalt-subprocess": "0.2.9"
+  },
+  "devDependencies": {
+    "@types/react": "~19.3.0",
+    "typescript": "~6.0.3",
+    "@react-native/metro-config": "*",
+    "@react-native-community/cli": "*"
+  },
+  "scripts": {
+    "start": "bun run paths && expo start --port 8097",
+    "macos": "bun run paths && react-native run-macos --port 8097",
+    "typecheck": "tsc --noEmit",
+    "paths": "echo \"export const SERVER = '$(cd .. && pwd)/server/server.ts';\" > src/paths.gen.ts"
+  },
+  "private": true,
+  "patchedDependencies": {
+    "basalt-core@0.2.9": "patches/basalt-core@0.2.9.patch"
+  }
+}

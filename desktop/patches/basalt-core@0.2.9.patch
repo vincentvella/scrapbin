@@ -1,0 +1,26 @@
+diff --git a/dist/src/overrides/BaseViewConfig.js b/dist/src/overrides/BaseViewConfig.js
+index f5ad0f544c9a80963c1b92548230636efeca24fb..23fbf3eb7fb4ec614fbd016e123d0985b5bf4bcb 100644
+--- a/dist/src/overrides/BaseViewConfig.js
++++ b/dist/src/overrides/BaseViewConfig.js
+@@ -62,6 +62,12 @@ const upstream = require('basalt-core/upstream/Libraries/NativeComponent/BaseVie
+ const BaseViewConfig = upstream.default ?? upstream;
+ exports.default = {
+     ...BaseViewConfig,
++    // Backport of vincentvella/basalt#8 (89a5177) until a release after 0.2.9 carries it:
++    // Android's config neither declares onAccessibilityTap nor registers its event.
++    directEventTypes: {
++        ...BaseViewConfig.directEventTypes,
++        topAccessibilityTap: { registrationName: 'onAccessibilityTap' },
++    },
+     validAttributes: {
+         ...BaseViewConfig.validAttributes,
+         // The three registered events upstream does not declare, with their capture
+@@ -99,6 +105,7 @@ exports.default = {
+         // Tab order, and core/KeyboardFocusable.h is where all three hosts read
+         // it. Also iOS-only in the view config, which is why no host could.
+         accessibilityRespondsToUserInteraction: true,
++        onAccessibilityTap: true,
+     },
+ };
+ //# sourceMappingURL=BaseViewConfig.js.map
+\ No newline at end of file

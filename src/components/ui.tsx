@@ -26,6 +26,7 @@ export function Button({ title, onPress, kind = 'primary', disabled, busy }: But
       accessibilityState={{ disabled: disabled || busy }}
       disabled={disabled || busy}
       onPress={onPress}
+      onAccessibilityTap={disabled || busy ? undefined : onPress} // Basalt: lets VoiceOver/AXPress activate it
       style={({ pressed }) => [styles.button, { backgroundColor: bg, opacity: disabled ? 0.4 : pressed ? 0.7 : 1 }]}>
       {busy ? <ActivityIndicator color={fg} /> : <ThemedText style={{ color: fg, fontWeight: 600 }}>{title}</ThemedText>}
     </Pressable>
@@ -38,7 +39,7 @@ export function Field(props: TextInputProps) {
     <TextInput
       placeholderTextColor={theme.textSecondary}
       {...props}
-      style={[styles.field, { color: theme.text, backgroundColor: theme.backgroundElement }, props.style]}
+      style={[styles.field, { color: theme.text, backgroundColor: theme.background, borderColor: theme.backgroundSelected }, props.style]}
     />
   );
 }
@@ -53,6 +54,7 @@ export function Chip({ label, selected, onPress, accessibilityLabel }: ChipProps
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ selected }}
       onPress={onPress}
+      onAccessibilityTap={onPress}
       style={[styles.chip, { backgroundColor: selected ? ACCENT : theme.backgroundElement }]}>
       <ThemedText type="small" style={selected && { color: '#fff' }}>
         {label}
@@ -75,7 +77,7 @@ export function Stepper({ value, onChange, label }: { value: number; onChange: (
 
 const styles = StyleSheet.create({
   button: { borderRadius: 12, paddingVertical: 14, paddingHorizontal: Spacing.three, alignItems: 'center' },
-  field: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
+  field: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
   chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, minWidth: 36, alignItems: 'center' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   qty: { minWidth: 32, textAlign: 'center', fontVariant: ['tabular-nums'], fontWeight: 600 },

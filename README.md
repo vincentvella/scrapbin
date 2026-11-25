@@ -13,6 +13,23 @@ Open source (MIT). Mobile (iOS/Android, Expo) and desktop (via [Basalt](https://
 
 No account and no server: data stays on the device, and you bring your own model API key.
 
+## Mac app
+
+The Mac app (in `desktop/`, built on [Basalt](https://basaltjs.dev)) needs no API key: it identifies parts with your
+Claude Code login. It starts a small local server (`server/`, bun) that keeps the inventory in
+`~/Library/Application Support/Scrapbin` and runs `claude -p` with read-only access to the photo being scanned.
+Add photos with **Add photos…** or by dropping them on the window.
+
+Needs bun and Claude Code (`claude`) on your PATH.
+
+```sh
+cd desktop
+bun install
+bun run macos   # first build compiles React Native and Hermes from source (several minutes)
+```
+
+The Mac and phone inventories are separate for now.
+
 ## Develop
 
 Scrapbin needs a development build (it uses native modules), not Expo Go.
