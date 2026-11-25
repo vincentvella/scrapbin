@@ -1,6 +1,7 @@
 // All storage goes through this module so the desktop (Basalt) build can swap expo-sqlite out later.
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import type { Idea } from './ideas';
 import { hardwareType, partKey, type Category, type DetectedPart } from './parts';
 
 export type Part = {
@@ -74,6 +75,16 @@ const MIGRATIONS: ((db: SQLiteDatabase) => Promise<void>)[] = [
     }
     await rekeyMerging(db, 'hardware');
   },
+  // 3: saved project ideas
+  (db) =>
+    db.execAsync(`
+      CREATE TABLE IF NOT EXISTS ideas (
+        id INTEGER PRIMARY KEY,
+        request TEXT,
+        idea_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+    `),
 ];
 
 /** Recompute keys for one category; parts that now share a key merge (quantities add, scan history moves). */
@@ -206,3 +217,26 @@ export async function saveScan(db: SQLiteDatabase, scanId: number, items: Review
     await db.runAsync(`UPDATE scans SET status='saved' WHERE id=?`, scanId);
   });
 }
+
+// Ideas
+
+export type SavedIdea = Idea & { id: number; request: string | null; created_at: string };
+
+export async function saveIdeas(db: SQLiteDatabase, request: string, ideas: Idea[]) {
+  const ts = now();
+  await db.withTransactionAsync(async () => {
+    for (const idea of ideas) {
+      await db.runAsync(`INSERT INTO ideas (request, idea_json, created_at) VALUES (?, ?, ?)`, request.trim() || null, JSON.stringify(idea), ts);
+    }
+  });
+}
+
+export async function listIdeas(db: SQLiteDatabase): Promise<SavedIdea[]> {
+  const rows = await db.getAllAsync<{ id: number; request: string | null; idea_json: string; created_at: string }>(
+    `SELECT * FROM ideas ORDER BY created_at DESC, id`,
+  );
+  return rows.map((r) => ({ ...(JSON.parse(r.idea_json) as Idea), id: r.id, request: r.request, created_at: r.created_at }));
+}
+
+export const deleteIdea = (db: SQLiteDatabase, id: number) => db.runAsync('DELETE FROM ideas WHERE id = ?', id);
+

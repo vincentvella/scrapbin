@@ -18,7 +18,7 @@ No account and no server: data stays on the device, and you bring your own model
 The Mac app (in `desktop/`, built on [Basalt](https://basaltjs.dev)) needs no API key: it identifies parts with your
 Claude Code login. It starts a small local server (`server/`, bun) that keeps the inventory in
 `~/Library/Application Support/Scrapbin` and runs `claude -p` with read-only access to the photo being scanned.
-Add photos with **Add photos…** or by dropping them on the window.
+Add photos with **Add photos…** or by dropping them on the window. **Project ideas** brainstorms builds from your inventory (parts you own, at most three cheap extras, build steps) and keeps the ones you don't delete.
 
 Needs bun and Claude Code (`claude`) on your PATH.
 

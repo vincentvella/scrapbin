@@ -12,7 +12,9 @@ let base = '';
 beforeAll(async () => {
   const fake = join(dir, 'fake-claude');
   const out = { structured_output: { parts: [{ name: 'NE555 timer', category: 'IC', value: null, package: 'DIP-8', quantity: 2, quantityIsEstimate: false, confidence: 'high', notes: null }] } };
-  writeFileSync(fake, `#!/bin/sh\necho '${JSON.stringify(out)}'\n`);
+  const ideas = { structured_output: { ideas: [{ title: 'Blinky', summary: 'Blinks.', difficulty: 'easy', hours: 1, uses: [{ partId: 1, quantity: 1, role: 'timer' }, { partId: 42, quantity: 1, role: 'made up' }], missing: [], steps: ['Wire it'] }] } };
+  // Answers brainstorms (their schema mentions "ideas") and photo scans differently.
+  writeFileSync(fake, `#!/bin/sh\ncase "$*" in *'"ideas"'*) echo '${JSON.stringify(ideas)}';; *) echo '${JSON.stringify(out)}';; esac\n`);
   chmodSync(fake, 0o755);
   // A real image for sips to convert.
   Bun.spawnSync(['sips', '-s', 'format', 'png', '/System/Library/Desktop Pictures/Mac Blue.heic', '--out', join(dir, 'in.png')]);
@@ -69,3 +71,13 @@ test('a bad path fails cleanly', async () => {
   expect(r.status).toBe(500);
   expect(((await r.json()) as any).error).toContain('No file');
 });
+
+test('brainstorm ideas from the inventory, keep and delete them', async () => {
+  const list = await body(call('/ideas', { method: 'POST', body: JSON.stringify({ request: 'something blinky' }) }));
+  expect(list).toHaveLength(1);
+  expect(list[0]).toMatchObject({ title: 'Blinky', request: 'something blinky' });
+  expect(list[0].uses).toEqual([{ partId: 1, quantity: 1, role: 'timer' }]); // the invented part #42 is dropped
+  await call(`/ideas/${list[0].id}`, { method: 'DELETE' });
+  expect(await body(call('/ideas'))).toHaveLength(0);
+});
+

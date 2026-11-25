@@ -6,8 +6,9 @@ import { homedir } from 'node:os';
 import { join, normalize } from 'node:path';
 
 import * as db from '../src/lib/db';
+import { inventoryText, parseIdeas } from '../src/lib/ideas';
 import { CATEGORIES, parseDetectedParts, type Category } from '../src/lib/parts';
-import { identifyParts } from './claude';
+import { brainstormIdeas, identifyParts } from './claude';
 import { openDb } from './sqlite';
 
 const TOKEN = process.env.SCRAPBIN_TOKEN;
@@ -129,6 +130,20 @@ const server = Bun.serve({
         case 'POST /scans/:id/save':
           await db.saveScan(sql, id, reviewItems(await req.json()));
           return json(await db.getScan(sql, id));
+        case 'GET /ideas':
+          return json(await db.listIdeas(sql));
+        case 'POST /ideas': {
+          const request = str(((await req.json()) as { request?: unknown }).request) ?? '';
+          const parts = await db.listParts(sql, '');
+          if (!parts.length) return fail('Your inventory is empty. Scan some parts first.');
+          const ideas = parseIdeas(await brainstormIdeas(inventoryText(parts), request), new Set(parts.map((p) => p.id)));
+          if (!ideas.length) return fail('Claude came back without any usable ideas. Try again or reword the request.', 502);
+          await db.saveIdeas(sql, request, ideas);
+          return json(await db.listIdeas(sql));
+        }
+        case 'DELETE /ideas/:id':
+          await db.deleteIdea(sql, id);
+          return json({ ok: true });
         case 'DELETE /scans/:id': {
           const scan = await db.getScan(sql, id);
           await db.deleteScan(sql, id);

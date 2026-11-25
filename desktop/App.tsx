@@ -9,6 +9,7 @@ import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { Part, Scan } from '@/lib/db';
 
+import { IdeasPanel } from './src/ideas-panel';
 import { PartPanel } from './src/part-panel';
 import { ScanPanel } from './src/scan-panel';
 import { useServer, type Api } from './src/server';
@@ -16,7 +17,7 @@ import { useServer, type Api } from './src/server';
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'tiff', 'gif'];
 const isImage = (path: string) => IMAGE_EXTENSIONS.includes(path.split('.').pop()?.toLowerCase() ?? '');
 
-export type Selection = { kind: 'part' | 'scan'; id: number } | null;
+export type Selection = { kind: 'part' | 'scan'; id: number } | { kind: 'ideas' } | null;
 
 export default function App() {
   const server = useServer();
@@ -64,6 +65,7 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
   const [scans, setScans] = useState<Scan[]>([]);
   const [selection, setSelection] = useState<Selection>(null);
   const [dragging, setDragging] = useState(false);
+  const [ideaCount, setIdeaCount] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     const [p, s] = await Promise.all([
@@ -77,6 +79,10 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
   useEffect(() => {
     refresh().catch((e) => Alert.alert('Could not load the inventory', String(e?.message ?? e)));
   }, [refresh]);
+
+  useEffect(() => {
+    api<unknown[]>('/ideas').then((list) => setIdeaCount(list.length), () => {});
+  }, [api]);
 
   async function addPhotos(paths: readonly string[]) {
     const images = paths.filter(isImage);
@@ -123,6 +129,12 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
             Scrapbin
           </ThemedText>
           <Button title="Add photos…" onPress={choosePhotos} />
+          <Row
+            title="Project ideas"
+            subtitle={ideaCount ? `${ideaCount} saved` : 'Brainstorm from your parts'}
+            selected={selection?.kind === 'ideas'}
+            onPress={() => setSelection({ kind: 'ideas' })}
+          />
           <Field accessibilityLabel="Search parts" placeholder="Search parts" value={search} onChangeText={setSearch} />
           <ThemedText type="small" themeColor="textSecondary">
             {parts.length} {parts.length === 1 ? 'kind' : 'kinds'} · {total} {total === 1 ? 'part' : 'parts'}
@@ -167,7 +179,9 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
       </View>
 
       <View style={styles.content}>
-        {selection?.kind === 'scan' ? (
+        {selection?.kind === 'ideas' ? (
+          <IdeasPanel api={api} onCountChange={setIdeaCount} />
+        ) : selection?.kind === 'scan' ? (
           <ScanPanel
             key={`s${selection.id}`}
             api={api}
