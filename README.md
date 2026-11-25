@@ -26,3 +26,9 @@ bun run lint
 ```
 
 Paste an Anthropic API key in the app's Settings tab before scanning.
+
+To check the vision prompt without an API key, run it through your Claude Code login:
+
+```sh
+bun scripts/vision-check.ts photo1.jpg photo2.jpg
+```

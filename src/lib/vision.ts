@@ -4,7 +4,7 @@ import { CATEGORIES, CONFIDENCES, parseDetectedParts } from './parts';
 
 const nullableString = { anyOf: [{ type: 'string' }, { type: 'null' }] };
 
-const SCHEMA = {
+export const SCHEMA = {
   type: 'object',
   properties: {
     parts: {
@@ -30,7 +30,7 @@ const SCHEMA = {
   additionalProperties: false,
 };
 
-const SYSTEM = `You catalog a hobbyist's electronics parts from a photo.
+export const SYSTEM = `You catalog a hobbyist's electronics parts from a photo.
 List each distinct part type once, with how many units are visible.
 - name: what it is, using the marking when readable ("NE555 timer", "ATmega328P", "Resistor", "Electrolytic capacitor").
 - value: electrical value if known ("10kΩ", "100nF", "16MHz"), else null. Read resistor color bands and capacitor codes when you can.

@@ -7,6 +7,7 @@ export const CATEGORIES = [
   'LED',
   'transistor',
   'diode',
+  'inductor',
   'connector',
   'module',
   'sensor',
