@@ -51,12 +51,14 @@ function reviewItems(body: unknown): db.ReviewItem[] {
     quantity: qty(it?.quantity),
     confidence: ['high', 'medium', 'low'].includes(it?.confidence) ? it.confidence : undefined,
     quantityIsEstimate: it?.quantityIsEstimate === true,
+    notes: str(it?.notes),
   }));
 }
 
 async function analyze(id: number) {
   const scan = await db.getScan(sql, id);
   if (!scan) return null;
+  if (scan.status === 'saved') throw new Error('This scan is already in your inventory.'); // re-analyzing would let it be saved twice
   try {
     const raw = await identifyParts(abs(scan.photo_path));
     parseDetectedParts(raw); // reject malformed output before storing it

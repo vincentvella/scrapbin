@@ -27,7 +27,7 @@ export type Scan = {
 };
 
 export type ReviewItem = Pick<DetectedPart, 'name' | 'category' | 'value' | 'package' | 'quantity'> &
-  Partial<Pick<DetectedPart, 'confidence' | 'quantityIsEstimate'>>;
+  Partial<Pick<DetectedPart, 'confidence' | 'quantityIsEstimate' | 'notes'>>;
 
 const MIGRATIONS: ((db: SQLiteDatabase) => Promise<void>)[] = [
   (db) =>
@@ -148,11 +148,12 @@ export async function saveScan(db: SQLiteDatabase, scanId: number, items: Review
     for (const it of items) {
       if (!it.name.trim() || it.quantity < 1) continue;
       const row = await db.getFirstAsync<{ id: number }>(
-        `INSERT INTO parts (key, name, category, value, package, quantity, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(key) DO UPDATE SET quantity = quantity + excluded.quantity, updated_at = excluded.updated_at
+        `INSERT INTO parts (key, name, category, value, package, quantity, notes, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(key) DO UPDATE SET quantity = quantity + excluded.quantity, notes = IFNULL(parts.notes, excluded.notes),
+           updated_at = excluded.updated_at
          RETURNING id`,
-        partKey(it), it.name.trim(), it.category, it.value, it.package, it.quantity, ts, ts,
+        partKey(it), it.name.trim(), it.category, it.value, it.package, it.quantity, it.notes?.trim() || null, ts, ts,
       );
       await db.runAsync(
         `INSERT INTO scan_items (scan_id, part_id, quantity, confidence, quantity_is_estimate) VALUES (?, ?, ?, ?, ?)`,

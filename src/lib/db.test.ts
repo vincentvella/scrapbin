@@ -18,7 +18,7 @@ test('saving scans merges matching parts and records history', async () => {
   await migrate(db); // idempotent
 
   const s1 = await analyzedScan(db, 'scans/1.jpg');
-  await saveScan(db, s1, [resistor, { name: 'NE555 timer', category: 'IC', value: null, package: 'DIP-8', quantity: 3 }]);
+  await saveScan(db, s1, [{ ...resistor, notes: 'From the BOJACK kit' }, { name: 'NE555 timer', category: 'IC', value: null, package: 'DIP-8', quantity: 3 }]);
   const s2 = await analyzedScan(db, 'scans/2.jpg');
   await saveScan(db, s2, [{ ...resistor, value: '10K ohm', quantity: 5 }, { ...resistor, name: ' ', quantity: 9 }]);
 
@@ -26,6 +26,7 @@ test('saving scans merges matching parts and records history', async () => {
   expect(parts).toHaveLength(2);
   const r = parts.find((p) => p.category === 'resistor')!;
   expect(r.quantity).toBe(25);
+  expect(r.notes).toBe('From the BOJACK kit'); // kept from the first scan, not overwritten
   expect((await partScans(db, r.id)).map((s) => s.quantity).sort()).toEqual([20, 5]);
   expect(await unsavedScans(db)).toHaveLength(0);
   await expect(saveScan(db, s1, [resistor])).rejects.toThrow('already in your inventory');

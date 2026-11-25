@@ -60,6 +60,8 @@ test('photo in, analyze, save, inventory out', async () => {
   const edited = await body(call(`/parts/${parts[0].id}`, { method: 'PUT', body: JSON.stringify({ ...parts[0], quantity: 5 }) }));
   expect(edited.quantity).toBe(5);
   expect(await body(call('/scans'))).toHaveLength(0);
+  const again = await call(`/scans/${scan.id}/analyze`, { method: 'POST' });
+  expect(again.status).toBe(500); // a saved scan can't be re-analyzed (and so re-saved)
 });
 
 test('a bad path fails cleanly', async () => {

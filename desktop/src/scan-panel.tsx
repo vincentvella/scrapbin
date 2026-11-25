@@ -107,9 +107,12 @@ export function ScanPanel({ api, id, photoUrl, onChanged, onDone }: Props) {
             ) : scan.status === 'saved' ? (
               <ThemedText themeColor="textSecondary">This scan is already in your inventory.</ThemedText>
             ) : (
-              <ThemedText themeColor="textSecondary">
-                {rows.length ? 'Check each part; the least certain are first.' : 'No parts found. Add them by hand.'}
-              </ThemedText>
+              <>
+                <ThemedText themeColor="textSecondary">
+                  {rows.length ? 'Check each part; the least certain are first.' : 'No parts found. Add them by hand.'}
+                </ThemedText>
+                <Button title="Re-analyze" kind="secondary" onPress={analyze} />
+              </>
             )}
             <Button title="Delete scan" kind="secondary" onPress={remove} />
           </View>
