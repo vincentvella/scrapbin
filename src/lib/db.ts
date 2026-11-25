@@ -63,7 +63,19 @@ const MIGRATIONS: ((db: SQLiteDatabase) => Promise<void>)[] = [
       );
       CREATE INDEX scan_items_part ON scan_items(part_id);
     `),
+  // 2: screws, nuts etc. used to land in "other"; move them to the new "hardware" category.
+  async (db) => {
+    const rows = await db.getAllAsync<Part>(`SELECT * FROM parts WHERE category = 'other'`);
+    for (const p of rows) {
+      if (!HARDWARE.test(p.name)) continue;
+      const moved = { ...p, category: 'hardware' as const };
+      // A hardware part with the same key already exists only if the user made one by hand; leave this one alone then.
+      await db.runAsync(`UPDATE OR IGNORE parts SET category = 'hardware', key = ? WHERE id = ?`, partKey(moved), p.id);
+    }
+  },
 ];
+
+const HARDWARE = /screw|bolt|nut\b|washer|standoff|spacer|rivet|heat.?shrink|zip.?tie|\bwire\b/i;
 
 export async function migrate(db: SQLiteDatabase) {
   await db.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');

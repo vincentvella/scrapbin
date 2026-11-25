@@ -40,3 +40,20 @@ test('saving scans merges matching parts and records history', async () => {
   await updatePart(db, { ...ic, quantity: 2 });
   expect((await getPart(db, ic.id))!.quantity).toBe(2);
 });
+
+test('migration 2 moves hardware out of "other"', async () => {
+  const db = memoryDb();
+  await db.execAsync('PRAGMA user_version = 0');
+  await migrate(db);
+  await db.execAsync('PRAGMA user_version = 1'); // pretend we're on the old schema with old data
+  const s = await analyzedScan(db, 'scans/h.jpg');
+  await saveScan(db, s, [
+    { name: 'Socket head cap screw', category: 'other', value: 'M2×8mm', package: null, quantity: 30 },
+    { name: 'Hex nut', category: 'other', value: 'M2', package: null, quantity: 10 },
+    { name: 'Mystery blob', category: 'other', value: null, package: null, quantity: 1 },
+  ]);
+  await migrate(db);
+  const cats = Object.fromEntries((await listParts(db, '')).map((p) => [p.name, p.category]));
+  expect(cats).toEqual({ 'Socket head cap screw': 'hardware', 'Hex nut': 'hardware', 'Mystery blob': 'other' });
+});
+

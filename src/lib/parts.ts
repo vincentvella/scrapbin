@@ -12,6 +12,7 @@ export const CATEGORIES = [
   'module',
   'sensor',
   'switch',
+  'hardware',
   'other',
 ] as const;
 export type Category = (typeof CATEGORIES)[number];

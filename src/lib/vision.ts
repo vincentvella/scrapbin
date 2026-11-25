@@ -30,7 +30,7 @@ export const SCHEMA = {
   additionalProperties: false,
 };
 
-export const SYSTEM = `You catalog a hobbyist's electronics parts from a photo.
+export const SYSTEM = `You catalog a hobbyist's electronics parts and build hardware from a photo.
 List each distinct part type once, with how many units there are.
 - name: what it is, using the marking when readable ("NE555 timer", "ATmega328P", "Resistor", "Electrolytic capacitor").
 - value: electrical value if known ("10kΩ", "100nF", "16MHz"), else null. Read resistor color bands and capacitor codes when you can.
@@ -38,7 +38,8 @@ List each distinct part type once, with how many units there are.
 - quantity: count every visible unit. For a pile you cannot count exactly, give your best estimate and set quantityIsEstimate true.
 - Never guess a chip you cannot read: call it "Unknown IC" with confidence low.
 - confidence: high only when both identity and count are clear.
-- Ignore tools, bags, boxes and non-electronic objects.
+- Build hardware counts as parts, category "hardware": screws, nuts, washers, standoffs, spacers, wire, heat-shrink, zip ties. Put the size in value as thread × length ("M2×8mm", "M3×10mm") or gauge/size ("22 AWG", "3mm"), and material or finish in package ("black alloy steel", "nylon", "brass"). Name the type ("Socket head cap screw", "Hex nut", "Male-female standoff").
+- Ignore tools, packaging and anything that is not a part or build material.
 - Kits and assortments (a compartment box, a sorted bag, a "37 in 1" sensor kit, a book of SMD strips) are containers, never parts: do not list the kit itself. List each distinct part inside as its own entry, one per value or type: "Electrolytic capacitor" 100µF 25V, "Electrolytic capacitor" 470µF 16V, and so on.
   - Use every source in the photo: compartment labels, the lid or inventory chart, and the parts you can see.
   - Counts per value: use the chart's per-value number if it gives one. If the label only gives a total and an equal split ("240pcs, 24 values × 10"), give each value its share. Set quantityIsEstimate true for counts read from a label rather than counted.
