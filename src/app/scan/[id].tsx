@@ -5,13 +5,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { MatchPicker } from '@/components/match-picker';
 import { PartFields } from '@/components/part-fields';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Button, Chip, DANGER, Stepper } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { getScan, saveScan, setScanAnalyzed, setScanFailed, type ReviewItem, type Scan } from '@/lib/db';
+import { getScan, listParts, saveScan, setScanAnalyzed, setScanFailed, type Part, type ReviewItem, type Scan } from '@/lib/db';
 import { parseDetectedParts, saveSummary, type Confidence } from '@/lib/parts';
 import { photoBase64, photoUri } from '@/lib/photos';
 import { getApiKey, getModel } from '@/lib/settings';
@@ -37,6 +38,7 @@ export default function ReviewScreen() {
   const [rows, setRows] = useState<Row[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [inventory, setInventory] = useState<Part[]>([]);
   const abort = useRef<AbortController | null>(null);
 
   const analyze = useCallback(
@@ -61,6 +63,10 @@ export default function ReviewScreen() {
     },
     [db],
   );
+
+  useEffect(() => {
+    listParts(db, '').then(setInventory);
+  }, [db]);
 
   useEffect(() => {
     let live = true;
@@ -130,7 +136,7 @@ export default function ReviewScreen() {
               {rows.length ? 'Check each part. Least certain ones are listed first. Tap a part to edit it.' : 'No parts found. Add them by hand or retake the photo.'}
             </ThemedText>
             {rows.map((r) => (
-              <ReviewRow key={r.rowId} row={r} onChange={(p) => update(r.rowId, p)} onRemove={() => setRows((rs) => rs.filter((x) => x.rowId !== r.rowId))} />
+              <ReviewRow key={r.rowId} row={r} inventory={inventory} onChange={(p) => update(r.rowId, p)} onRemove={() => setRows((rs) => rs.filter((x) => x.rowId !== r.rowId))} />
             ))}
             <Button title="Add part" kind="secondary" onPress={addRow} />
           </>
@@ -145,7 +151,9 @@ export default function ReviewScreen() {
   );
 }
 
-function ReviewRow({ row, onChange, onRemove }: { row: Row; onChange: (p: Partial<Row>) => void; onRemove: () => void }) {
+type RowProps = { row: Row; inventory: Part[]; onChange: (p: Partial<Row>) => void; onRemove: () => void };
+
+function ReviewRow({ row, inventory, onChange, onRemove }: RowProps) {
   const theme = useTheme();
   const detail = [row.category, row.value, row.package].filter(Boolean).join(' · ');
   return (
@@ -167,6 +175,7 @@ function ReviewRow({ row, onChange, onRemove }: { row: Row; onChange: (p: Partia
         </Pressable>
         <Stepper label={row.name} value={row.quantity} onChange={(quantity) => onChange({ quantity })} />
       </View>
+      <MatchPicker item={row} inventory={inventory} onChange={(target) => onChange({ target })} />
       {row.expanded && (
         <>
           <PartFields part={row} onChange={(p) => onChange(p)} />

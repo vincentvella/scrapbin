@@ -9,7 +9,7 @@ import { useTheme } from '@/hooks/use-theme';
 import type { Part, ReviewItem, Scan } from '@/lib/db';
 import { parseDetectedParts, saveSummary, type Confidence } from '@/lib/parts';
 
-import { MatchPicker } from './match-picker';
+import { MatchPicker } from '@/components/match-picker';
 import type { Api } from './server';
 
 type Row = ReviewItem & { rowId: number };
