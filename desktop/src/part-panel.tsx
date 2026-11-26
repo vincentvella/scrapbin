@@ -17,7 +17,7 @@ type Props = {
   id: number;
   photoUrl: (rel: string) => string;
   onOpenScan: (id: number) => void;
-  onOpenIdeas: () => void;
+  onOpenIdea: (id: number) => void;
   onChanged: () => void;
   onDone: () => void;
 };
@@ -25,12 +25,12 @@ type Props = {
 const editable = (p: Part) => JSON.stringify([p.name, p.category, p.value, p.package, p.quantity, p.notes]);
 
 /** One inventory part: edit it, see which scans it came from and which ideas need it. */
-export function PartPanel({ api, id, photoUrl, onOpenScan, onOpenIdeas, onChanged, onDone }: Props) {
+export function PartPanel({ api, id, photoUrl, onOpenScan, onOpenIdea, onChanged, onDone }: Props) {
   const theme = useTheme();
   const [saved, setSaved] = useState<Part | null>(null);
   const [part, setPart] = useState<Part | null>(null);
   const [scans, setScans] = useState<ScanRef[]>([]);
-  const [ideas, setIdeas] = useState<{ title: string; quantity: number }[]>([]);
+  const [ideas, setIdeas] = useState<{ id: number; title: string; quantity: number }[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export function PartPanel({ api, id, photoUrl, onOpenScan, onOpenIdeas, onChange
     }, () => {});
     api<ScanRef[]>(`/parts/${id}/scans`).then(setScans, () => {});
     api<SavedIdea[]>('/ideas').then(
-      (list) => setIdeas(list.flatMap((i) => i.uses.filter((u) => u.partId === id).map((u) => ({ title: i.title, quantity: u.quantity })))),
+      (list) => setIdeas(list.flatMap((i) => i.uses.filter((u) => u.partId === id).map((u) => ({ id: i.id, title: i.title, quantity: u.quantity })))),
       () => {},
     );
   }, [api, id]);
@@ -115,8 +115,8 @@ export function PartPanel({ api, id, photoUrl, onOpenScan, onOpenIdeas, onChange
               key={n}
               accessibilityRole="button"
               accessibilityLabel={`Idea ${i.title}, needs ${i.quantity}`}
-              onPress={onOpenIdeas}
-              onAccessibilityTap={onOpenIdeas}
+              onPress={() => onOpenIdea(i.id)}
+              onAccessibilityTap={() => onOpenIdea(i.id)}
               style={[styles.line, { backgroundColor: theme.backgroundElement }]}>
               <ThemedText type="small" style={styles.flex}>
                 {i.title}

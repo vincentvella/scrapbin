@@ -1,21 +1,22 @@
 import { DropTarget, useDialog, useWindow } from 'basalt-core';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { ACCENT } from '@/components/ui';
+import { ACCENT, Chip } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import type { Part, Scan } from '@/lib/db';
+import type { Part, SavedIdea, Scan } from '@/lib/db';
 import type { Category } from '@/lib/parts';
 
-import { IdeasPanel } from './src/ideas-panel';
+import { BrainstormPanel, IdeaDetail } from './src/ideas-panel';
 import { PartPanel } from './src/part-panel';
 import { ScanPanel } from './src/scan-panel';
 import { Overview } from './src/overview';
 import { useServer, type Api } from './src/server';
-import { Sidebar, type QueuedScan, type Selection } from './src/sidebar';
+import { InventoryDrawer, type QueuedScan, type Selection } from './src/inventory-drawer';
+import { ProjectsSidebar } from './src/projects-sidebar';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'tiff', 'gif'];
 const isImage = (path: string) => IMAGE_EXTENSIONS.includes(path.split('.').pop()?.toLowerCase() ?? '');
@@ -28,8 +29,8 @@ export default function App() {
 
   useEffect(() => {
     if (!hasWindow) return; // sizing before the window exists is ignored
-    win.setMinimumSize(860, 560);
-    win.setSize(1180, 780);
+    win.setMinimumSize(1040, 600);
+    win.setSize(1320, 820);
     win.center();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the window appears
   }, [hasWindow]);
@@ -66,18 +67,17 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
   const [category, setCategory] = useState<Category | null>(null);
   const [parts, setParts] = useState<Part[]>([]);
   const [scans, setScans] = useState<QueuedScan[]>([]);
+  const [ideas, setIdeas] = useState<SavedIdea[]>([]);
   const [selection, setSelection] = useState<Selection>(null);
+  const [drawerOpen, setDrawerOpen] = useState(true);
   const [dragging, setDragging] = useState(false);
-  const [ideaCount, setIdeaCount] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
-    const [p, s] = await Promise.all([
-      api<Part[]>(`/parts?search=${encodeURIComponent(search)}`),
-      api<QueuedScan[]>('/scans'),
-    ]);
+    const [p, s, i] = await Promise.all([api<Part[]>('/parts?search='), api<QueuedScan[]>('/scans'), api<SavedIdea[]>('/ideas')]);
     setParts(p);
     setScans(s);
-  }, [api, search]);
+    setIdeas(i);
+  }, [api]);
 
   useEffect(() => {
     // A failed load is transient (the server is restarting); useServer hands us a new api and this runs again.
@@ -93,9 +93,9 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
     return () => clearInterval(timer);
   }, [working, refresh]);
 
-  useEffect(() => {
-    api<unknown[]>('/ideas').then((list) => setIdeaCount(list.length), () => {});
-  }, [api]);
+  const inventory = useMemo(() => new Map(parts.map((p) => [p.id, p])), [parts]);
+  const openIdea = selection?.kind === 'idea' ? ideas.find((i) => i.id === selection.id) ?? null : null;
+  const needed = useMemo(() => (openIdea ? new Map(openIdea.uses.map((u) => [u.partId, u.quantity])) : null), [openIdea]);
 
   async function addPhotos(paths: readonly string[]) {
     const images = paths.filter(isImage);
@@ -124,6 +124,11 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
     if (!canceled && paths?.length) await addPhotos(paths);
   }
 
+  const backHome = () => {
+    setSelection(null);
+    refresh().catch(() => {});
+  };
+
   return (
     <DropTarget
       accepts={['files']}
@@ -134,34 +139,33 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
         setDragging(false);
         addPhotos(files);
       }}>
-      <Sidebar
-        parts={parts}
-        scans={scans}
-        search={search}
-        onSearch={setSearch}
-        selection={selection}
-        onSelect={setSelection}
-        ideaCount={ideaCount}
-        onAddPhotos={choosePhotos}
-        category={category}
-        onClearCategory={() => setCategory(null)}
-      />
+      <ProjectsSidebar ideas={ideas} selection={selection} onSelect={setSelection} />
 
       <View style={styles.content}>
-        {selection?.kind === 'ideas' ? (
-          <IdeasPanel api={api} onCountChange={setIdeaCount} />
-        ) : selection?.kind === 'scan' ? (
-          <ScanPanel
-            key={`s${selection.id}`}
+        {!drawerOpen && (
+          <View style={styles.showDrawer}>
+            <Chip label="Show inventory" onPress={() => setDrawerOpen(true)} />
+          </View>
+        )}
+        {selection?.kind === 'brainstorm' ? (
+          <BrainstormPanel
             api={api}
-            id={selection.id}
-            photoUrl={photoUrl}
-            onChanged={refresh}
-            onDone={() => {
-              setSelection(null);
-              refresh();
-            }}
+            ideas={ideas}
+            inventory={inventory}
+            onIdeas={setIdeas}
+            onOpenIdea={(id) => setSelection({ kind: 'idea', id })}
           />
+        ) : openIdea ? (
+          <IdeaDetail
+            key={`i${openIdea.id}`}
+            api={api}
+            idea={openIdea}
+            inventory={inventory}
+            onOpenPart={(id) => setSelection({ kind: 'part', id })}
+            onDeleted={backHome}
+          />
+        ) : selection?.kind === 'scan' ? (
+          <ScanPanel key={`s${selection.id}`} api={api} id={selection.id} photoUrl={photoUrl} onChanged={refresh} onDone={backHome} />
         ) : selection?.kind === 'part' ? (
           <PartPanel
             key={`p${selection.id}`}
@@ -169,17 +173,30 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
             id={selection.id}
             photoUrl={photoUrl}
             onOpenScan={(id) => setSelection({ kind: 'scan', id })}
-            onOpenIdeas={() => setSelection({ kind: 'ideas' })}
-            onDone={() => {
-              setSelection(null);
-              refresh();
-            }}
+            onOpenIdea={(id) => setSelection({ kind: 'idea', id })}
+            onDone={backHome}
             onChanged={refresh}
           />
         ) : (
           <Overview parts={parts} dragging={dragging} category={category} onPickCategory={setCategory} onAddPhotos={choosePhotos} />
         )}
       </View>
+
+      {drawerOpen && (
+        <InventoryDrawer
+          parts={parts}
+          scans={scans}
+          search={search}
+          onSearch={setSearch}
+          selection={selection}
+          onSelect={setSelection}
+          onAddPhotos={choosePhotos}
+          onHide={() => setDrawerOpen(false)}
+          category={category}
+          onClearCategory={() => setCategory(null)}
+          needed={needed}
+        />
+      )}
       {dragging && <View pointerEvents="none" style={[styles.dropOverlay, { borderColor: ACCENT }]} />}
     </DropTarget>
   );
@@ -196,6 +213,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingHorizontal: Spacing.two, paddingVertical: Spacing.two, borderRadius: 8 },
   qty: { fontWeight: 700, fontVariant: ['tabular-nums'] },
   content: { flex: 1 },
+  showDrawer: { position: 'absolute', top: Spacing.three, right: Spacing.three, zIndex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.four },
   error: { maxWidth: 560, textAlign: 'center' },
   dropOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderWidth: 3, borderRadius: 12, margin: 6 },
