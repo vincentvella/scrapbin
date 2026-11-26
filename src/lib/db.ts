@@ -172,10 +172,10 @@ export const getScan = (db: SQLiteDatabase, id: number) =>
   db.getFirstAsync<Scan>('SELECT * FROM scans WHERE id = ?', id);
 
 export const setScanAnalyzed = (db: SQLiteDatabase, id: number, model: string, rawJson: string) =>
-  db.runAsync(`UPDATE scans SET status='analyzed', model=?, raw_json=?, error=NULL WHERE id=?`, model, rawJson, id);
+  db.runAsync(`UPDATE scans SET status='analyzed', model=?, raw_json=?, error=NULL WHERE id=? AND status != 'saved'`, model, rawJson, id);
 
 export const setScanFailed = (db: SQLiteDatabase, id: number, error: string) =>
-  db.runAsync(`UPDATE scans SET status='failed', error=? WHERE id=?`, error, id);
+  db.runAsync(`UPDATE scans SET status='failed', error=? WHERE id=? AND status != 'saved'`, error, id);
 
 export const deleteScan = (db: SQLiteDatabase, id: number) => db.runAsync('DELETE FROM scans WHERE id = ?', id);
 

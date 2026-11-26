@@ -81,3 +81,15 @@ test('brainstorm ideas from the inventory, keep and delete them', async () => {
   expect(await body(call('/ideas'))).toHaveLength(0);
 });
 
+test('a batch of photos is analyzed in the background, oldest first', async () => {
+  const ids: number[] = [];
+  for (let i = 0; i < 3; i++) ids.push((await body(call('/scans', { method: 'POST', body: JSON.stringify({ path: join(dir, 'in.png') }) }))).id);
+  let scans: { id: number; status: string }[] = [];
+  for (let i = 0; i < 50; i++) {
+    scans = (await body(call('/scans'))).filter((s: { id: number }) => ids.includes(s.id));
+    if (scans.every((s) => s.status === 'analyzed')) break;
+    await Bun.sleep(100);
+  }
+  expect(scans.map((s) => s.status)).toEqual(['analyzed', 'analyzed', 'analyzed']); // nobody called /analyze
+});
+

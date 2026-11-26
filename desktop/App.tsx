@@ -17,6 +17,11 @@ import { useServer, type Api } from './src/server';
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'tiff', 'gif'];
 const isImage = (path: string) => IMAGE_EXTENSIONS.includes(path.split('.').pop()?.toLowerCase() ?? '');
 
+/** A scan as the server lists it: `analyzing` while Claude Code is on it. */
+type QueuedScan = Scan & { analyzing?: boolean };
+
+const SCAN_LABEL = { pending: 'Queued', analyzed: 'Ready to review', failed: 'Failed', saved: 'Saved' } as const;
+
 export type Selection = { kind: 'part' | 'scan'; id: number } | { kind: 'ideas' } | null;
 
 export default function App() {
@@ -62,7 +67,7 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
   const dialog = useDialog();
   const [search, setSearch] = useState('');
   const [parts, setParts] = useState<Part[]>([]);
-  const [scans, setScans] = useState<Scan[]>([]);
+  const [scans, setScans] = useState<QueuedScan[]>([]);
   const [selection, setSelection] = useState<Selection>(null);
   const [dragging, setDragging] = useState(false);
   const [ideaCount, setIdeaCount] = useState<number | null>(null);
@@ -70,7 +75,7 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
   const refresh = useCallback(async () => {
     const [p, s] = await Promise.all([
       api<Part[]>(`/parts?search=${encodeURIComponent(search)}`),
-      api<Scan[]>('/scans'),
+      api<QueuedScan[]>('/scans'),
     ]);
     setParts(p);
     setScans(s);
@@ -79,6 +84,14 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
   useEffect(() => {
     refresh().catch((e) => Alert.alert('Could not load the inventory', String(e?.message ?? e)));
   }, [refresh]);
+
+  // While the server works through a batch, refresh so the list shows each scan as it finishes.
+  const working = scans.some((s) => s.status === 'pending' || s.analyzing);
+  useEffect(() => {
+    if (!working) return;
+    const timer = setInterval(() => refresh().catch(() => {}), 3000);
+    return () => clearInterval(timer);
+  }, [working, refresh]);
 
   useEffect(() => {
     api<unknown[]>('/ideas').then((list) => setIdeaCount(list.length), () => {});
@@ -149,7 +162,7 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
               {scans.map((s) => (
                 <Row
                   key={`s${s.id}`}
-                  title={s.status === 'analyzed' ? 'Ready to review' : s.status === 'failed' ? 'Failed' : 'Not analyzed'}
+                  title={s.analyzing ? 'Analyzing…' : SCAN_LABEL[s.status]}
                   subtitle={new Date(s.created_at).toLocaleString()}
                   selected={selection?.kind === 'scan' && selection.id === s.id}
                   onPress={() => setSelection({ kind: 'scan', id: s.id })}

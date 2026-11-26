@@ -60,7 +60,18 @@ function reviewItems(body: unknown): db.ReviewItem[] {
   }));
 }
 
-async function analyze(id: number) {
+/** Identify one scan's parts; a scan already being analyzed is joined, not run twice. */
+const inflight = new Map<number, Promise<db.Scan | null>>();
+function analyze(id: number) {
+  let job = inflight.get(id);
+  if (!job) {
+    job = runAnalysis(id).finally(() => inflight.delete(id));
+    inflight.set(id, job);
+  }
+  return job;
+}
+
+async function runAnalysis(id: number) {
   const scan = await db.getScan(sql, id);
   if (!scan) return null;
   if (scan.status === 'saved') throw new Error('This scan is already in your inventory.'); // re-analyzing would let it be saved twice
@@ -72,6 +83,23 @@ async function analyze(id: number) {
     await db.setScanFailed(sql, id, e instanceof Error ? e.message : String(e));
   }
   return db.getScan(sql, id);
+}
+
+// Background queue: analyze pending scans oldest first, one at a time.
+// shortcut: one at a time keeps Claude Code's rate limits happy; a scan you open jumps the queue anyway.
+let draining = false;
+async function drainQueue() {
+  if (draining) return;
+  draining = true;
+  try {
+    for (;;) {
+      const next = (await db.unsavedScans(sql)).filter((s) => s.status === 'pending' && !inflight.has(s.id)).at(-1); // list is newest first
+      if (!next) break;
+      await analyze(next.id).catch(() => {}); // failures are recorded on the scan
+    }
+  } finally {
+    draining = false;
+  }
 }
 
 // The Basalt app ignores SIGTERM (so it can refuse to quit) and we inherit that; handle it so the app's kill() works.
@@ -127,11 +155,12 @@ const server = Bun.serve({
           await db.deletePart(sql, id);
           return json({ ok: true });
         case 'GET /scans':
-          return json(await db.unsavedScans(sql));
+          return json((await db.unsavedScans(sql)).map((s) => ({ ...s, analyzing: inflight.has(s.id) })));
         case 'POST /scans': {
           const path = str(((await req.json()) as { path?: unknown }).path);
           if (!path) return fail('path is required');
           const scanId = await db.createScan(sql, storePhoto(path), MODEL);
+          void drainQueue();
           return json(await db.getScan(sql, scanId));
         }
         case 'GET /scans/:id':
@@ -175,3 +204,4 @@ const server = Bun.serve({
 });
 
 console.log(`SCRAPBIN_PORT ${server.port}`);
+void drainQueue(); // pick up anything left pending last time
