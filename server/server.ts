@@ -85,20 +85,23 @@ async function runAnalysis(id: number) {
   return db.getScan(sql, id);
 }
 
-// Background queue: analyze pending scans oldest first, one at a time.
-// shortcut: one at a time keeps Claude Code's rate limits happy; a scan you open jumps the queue anyway.
-let draining = false;
-async function drainQueue() {
-  if (draining) return;
-  draining = true;
-  try {
-    for (;;) {
-      const next = (await db.unsavedScans(sql)).filter((s) => s.status === 'pending' && !inflight.has(s.id)).at(-1); // list is newest first
-      if (!next) break;
-      await analyze(next.id).catch(() => {}); // failures are recorded on the scan
-    }
-  } finally {
-    draining = false;
+// Background queue: analyze pending scans oldest first, two at a time (Claude Code handles that fine,
+// and it halves a batch's wait). A scan you open jumps the queue anyway.
+const CONCURRENCY = 2;
+let workers = 0;
+function drainQueue() {
+  while (workers < CONCURRENCY) {
+    workers++;
+    void queueWorker().finally(() => workers--);
+  }
+}
+
+async function queueWorker() {
+  for (;;) {
+    // No await between this filter and analyze(), which marks the scan in flight, so two workers never pick the same scan.
+    const next = (await db.unsavedScans(sql)).filter((s) => s.status === 'pending' && !inflight.has(s.id)).at(-1); // list is newest first
+    if (!next) return;
+    await analyze(next.id).catch(() => {}); // failures are recorded on the scan
   }
 }
 
@@ -160,7 +163,7 @@ const server = Bun.serve({
           const path = str(((await req.json()) as { path?: unknown }).path);
           if (!path) return fail('path is required');
           const scanId = await db.createScan(sql, storePhoto(path), MODEL);
-          void drainQueue();
+          drainQueue();
           return json(await db.getScan(sql, scanId));
         }
         case 'GET /scans/:id':
@@ -204,4 +207,4 @@ const server = Bun.serve({
 });
 
 console.log(`SCRAPBIN_PORT ${server.port}`);
-void drainQueue(); // pick up anything left pending last time
+drainQueue(); // pick up anything left pending last time

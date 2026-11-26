@@ -13,8 +13,9 @@ beforeAll(async () => {
   const fake = join(dir, 'fake-claude');
   const out = { structured_output: { parts: [{ name: 'NE555 timer', category: 'IC', value: null, package: 'DIP-8', quantity: 2, quantityIsEstimate: false, confidence: 'high', notes: null }] } };
   const ideas = { structured_output: { ideas: [{ title: 'Blinky', summary: 'Blinks.', difficulty: 'easy', hours: 1, uses: [{ partId: 1, quantity: 1, role: 'timer' }, { partId: 42, quantity: 1, role: 'made up' }], missing: [], steps: ['Wire it'] }] } };
-  // Answers brainstorms (their schema mentions "ideas") and photo scans differently.
-  writeFileSync(fake, `#!/bin/sh\ncase "$*" in *'"ideas"'*) echo '${JSON.stringify(ideas)}';; *) echo '${JSON.stringify(out)}';; esac\n`);
+  // Answers brainstorms (their schema mentions "ideas") and photo scans differently; a scan takes 1s, longer than an upload,
+  // so a batch's analyses overlap.
+  writeFileSync(fake, `#!/bin/sh\ncase "$*" in *'"ideas"'*) echo '${JSON.stringify(ideas)}';; *) sleep 1; echo '${JSON.stringify(out)}';; esac\n`);
   chmodSync(fake, 0o755);
   // A real image for sips to convert.
   Bun.spawnSync(['sips', '-s', 'format', 'png', '/System/Library/Desktop Pictures/Mac Blue.heic', '--out', join(dir, 'in.png')]);
@@ -81,15 +82,18 @@ test('brainstorm ideas from the inventory, keep and delete them', async () => {
   expect(await body(call('/ideas'))).toHaveLength(0);
 });
 
-test('a batch of photos is analyzed in the background, oldest first', async () => {
+test('a batch of photos is analyzed in the background, two at a time', async () => {
   const ids: number[] = [];
-  for (let i = 0; i < 3; i++) ids.push((await body(call('/scans', { method: 'POST', body: JSON.stringify({ path: join(dir, 'in.png') }) }))).id);
-  let scans: { id: number; status: string }[] = [];
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 5; i++) ids.push((await body(call('/scans', { method: 'POST', body: JSON.stringify({ path: join(dir, 'in.png') }) }))).id);
+  let scans: { id: number; status: string; analyzing: boolean }[] = [];
+  let mostAtOnce = 0;
+  for (let i = 0; i < 200; i++) {
     scans = (await body(call('/scans'))).filter((s: { id: number }) => ids.includes(s.id));
+    mostAtOnce = Math.max(mostAtOnce, scans.filter((s) => s.analyzing).length);
     if (scans.every((s) => s.status === 'analyzed')) break;
-    await Bun.sleep(100);
+    await Bun.sleep(50);
   }
-  expect(scans.map((s) => s.status)).toEqual(['analyzed', 'analyzed', 'analyzed']); // nobody called /analyze
+  expect(scans.map((s) => s.status)).toEqual(Array(5).fill('analyzed')); // nobody called /analyze
+  expect(mostAtOnce).toBe(2);
 });
 
