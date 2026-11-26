@@ -74,8 +74,19 @@ async function analyze(id: number) {
   return db.getScan(sql, id);
 }
 
+// The Basalt app ignores SIGTERM (so it can refuse to quit) and we inherit that; handle it so the app's kill() works.
+for (const sig of ['SIGTERM', 'SIGINT'] as const) process.on(sig, () => process.exit(0));
+
+const TICK_MS = 5_000;
 let lastSeen = Date.now();
-setInterval(() => Date.now() - lastSeen > IDLE_EXIT_MS && process.exit(0), 5_000);
+let lastTick = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  // A tick far later than scheduled means the Mac slept: neither we nor the app ran, so don't count it as idle.
+  if (now - lastTick > TICK_MS * 4) lastSeen = now;
+  lastTick = now;
+  if (now - lastSeen > IDLE_EXIT_MS) process.exit(0);
+}, TICK_MS);
 
 const server = Bun.serve({
   hostname: '127.0.0.1',

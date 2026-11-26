@@ -17,18 +17,32 @@ export function useServer(): ServerState {
   const [state, setState] = useState<ServerState>({ status: 'starting' });
 
   useEffect(() => {
-    const token = newToken();
+    let stopped = false;
     let pid: number | null = null;
     let stdout = '';
     let stderr = '';
     let ping: ReturnType<typeof setInterval> | undefined;
+    let quickExits = 0;
+    let startedAt = 0;
+    const token = newToken();
+
+    function start() {
+      stdout = '';
+      stderr = '';
+      pid = null;
+      startedAt = Date.now();
+      spawn({ command: `"bun" "${SERVER}"`, env: { SCRAPBIN_TOKEN: token } })
+        .then((p) => (stopped ? kill(p) : (pid = p)))
+        .catch((e) => setState({ status: 'failed', error: `Could not start bun: ${e?.message ?? e}` }));
+    }
 
     const output = addOutputListener((e) => {
       if (pid !== null && e.pid !== pid) return;
       if (e.stream === 'stderr') stderr = (stderr + e.data).slice(-2000);
       else stdout += e.data;
       const port = stdout.match(/SCRAPBIN_PORT (\d+)/)?.[1];
-      if (!port || ping) return;
+      if (!port) return;
+      stdout = ''; // read each start's port once
       const base = `http://127.0.0.1:${port}`;
       const api: Api = async (path, init) => {
         const res = await fetch(base + path, {
@@ -40,19 +54,28 @@ export function useServer(): ServerState {
         if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`);
         return data;
       };
+      clearInterval(ping);
       ping = setInterval(() => api('/ping').catch(() => {}), 15_000); // the server exits a minute after the app stops pinging
       setState({ status: 'ready', api, photoUrl: (rel) => `${base}/photos/${rel}?token=${token}` });
     });
+
+    // If the server goes away (it shouldn't, but sleep, a kill or a crash can do it), start another one;
+    // give up only when it keeps dying right after starting.
     const exit = addExitListener((e) => {
-      if (e.pid !== pid) return;
-      setState({ status: 'failed', error: stderr.trim() || `The server exited with code ${e.code}.` });
+      if (e.pid !== pid || stopped) return;
+      clearInterval(ping);
+      quickExits = Date.now() - startedAt < 10_000 ? quickExits + 1 : 0;
+      if (quickExits >= 3) {
+        setState({ status: 'failed', error: stderr.trim() || `The server exited with code ${e.code}.` });
+        return;
+      }
+      setState({ status: 'starting' });
+      setTimeout(start, 500);
     });
 
-    spawn({ command: `"bun" "${SERVER}"`, env: { SCRAPBIN_TOKEN: token } })
-      .then((p) => (pid = p))
-      .catch((e) => setState({ status: 'failed', error: `Could not start bun: ${e?.message ?? e}` }));
-
+    start();
     return () => {
+      stopped = true;
       output.remove();
       exit.remove();
       clearInterval(ping);
