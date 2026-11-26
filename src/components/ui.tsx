@@ -75,7 +75,52 @@ export function Stepper({ value, onChange, label }: { value: number; onChange: (
   );
 }
 
+type SegmentedProps<T extends string | number> = {
+  label: string;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+  /** Stack options (for long labels); default is side by side, equal widths. */
+  vertical?: boolean;
+};
+
+/** One choice out of a few, as a single control: exactly one option is selected (a radio group). */
+export function Segmented<T extends string | number>({ label, options, value, onChange, vertical }: SegmentedProps<T>) {
+  const theme = useTheme();
+  return (
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel={label}
+      style={[styles.segmented, vertical && styles.segmentedVertical, { borderColor: theme.backgroundSelected, backgroundColor: theme.background }]}>
+      {options.map((o) => {
+        const selected = o.value === value;
+        const press = () => onChange(o.value);
+        return (
+          <Pressable
+            key={String(o.value)}
+            accessibilityRole="radio"
+            accessibilityLabel={o.label}
+            accessibilityState={{ checked: selected }}
+            onPress={press}
+            onAccessibilityTap={press}
+            style={[styles.segment, !vertical && styles.segmentFlex, selected && { backgroundColor: ACCENT }]}>
+            <ThemedText type="small" numberOfLines={2} style={[styles.segmentText, !vertical && styles.centered, selected && { color: '#fff', fontWeight: 700 }]}>
+              {o.label}
+            </ThemedText>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  segmented: { flexDirection: 'row', borderWidth: 1, borderRadius: 10, padding: 2, gap: 2 },
+  segmentedVertical: { flexDirection: 'column' },
+  segment: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, justifyContent: 'center' },
+  segmentFlex: { flex: 1 },
+  segmentText: { lineHeight: 18 },
+  centered: { textAlign: 'center' },
   button: { borderRadius: 12, paddingVertical: 14, paddingHorizontal: Spacing.three, alignItems: 'center' },
   field: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
   chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, minWidth: 36, alignItems: 'center' },

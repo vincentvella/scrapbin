@@ -10,6 +10,7 @@ import type { Part, ReviewItem, Scan } from '@/lib/db';
 import { parseDetectedParts, saveSummary, type Confidence } from '@/lib/parts';
 
 import { MatchPicker } from '@/components/match-picker';
+import { useDefaultMatches } from '@/hooks/use-default-matches';
 import type { Api } from './server';
 
 type Row = ReviewItem & { rowId: number };
@@ -32,7 +33,7 @@ export function ScanPanel({ api, id, photoUrl, onChanged, onDone }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [inventory, setInventory] = useState<Part[]>([]);
+  const [inventory, setInventory] = useState<Part[] | null>(null);
 
   const show = useCallback((s: Scan) => {
     setScan(s);
@@ -54,6 +55,7 @@ export function ScanPanel({ api, id, photoUrl, onChanged, onDone }: Props) {
   useEffect(() => {
     api<Part[]>('/parts?search=').then(setInventory);
   }, [api]);
+  useDefaultMatches(inventory, rows, setRows);
 
   useEffect(() => {
     api<Scan>(`/scans/${id}`).then((s) => {
@@ -138,7 +140,7 @@ export function ScanPanel({ api, id, photoUrl, onChanged, onDone }: Props) {
                   <Chip label="Remove" onPress={() => setRows((rs) => rs.filter((x) => x.rowId !== r.rowId))} accessibilityLabel={`Remove ${r.name}`} />
                 </View>
                 <PartFields part={r} onChange={(p) => update(r.rowId, p)} />
-                <MatchPicker item={r} inventory={inventory} onChange={(target) => update(r.rowId, { target })} />
+                <MatchPicker item={r} inventory={inventory ?? []} onChange={(target) => update(r.rowId, { target })} />
               </View>
             ))}
             <View style={styles.actions}>

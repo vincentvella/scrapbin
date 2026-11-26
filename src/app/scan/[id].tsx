@@ -6,6 +6,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MatchPicker } from '@/components/match-picker';
+import { useDefaultMatches } from '@/hooks/use-default-matches';
 import { PartFields } from '@/components/part-fields';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -38,7 +39,7 @@ export default function ReviewScreen() {
   const [rows, setRows] = useState<Row[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [inventory, setInventory] = useState<Part[]>([]);
+  const [inventory, setInventory] = useState<Part[] | null>(null);
   const abort = useRef<AbortController | null>(null);
 
   const analyze = useCallback(
@@ -67,6 +68,7 @@ export default function ReviewScreen() {
   useEffect(() => {
     listParts(db, '').then(setInventory);
   }, [db]);
+  useDefaultMatches(inventory, rows, setRows);
 
   useEffect(() => {
     let live = true;
@@ -136,7 +138,7 @@ export default function ReviewScreen() {
               {rows.length ? 'Check each part. Least certain ones are listed first. Tap a part to edit it.' : 'No parts found. Add them by hand or retake the photo.'}
             </ThemedText>
             {rows.map((r) => (
-              <ReviewRow key={r.rowId} row={r} inventory={inventory} onChange={(p) => update(r.rowId, p)} onRemove={() => setRows((rs) => rs.filter((x) => x.rowId !== r.rowId))} />
+              <ReviewRow key={r.rowId} row={r} inventory={inventory ?? []} onChange={(p) => update(r.rowId, p)} onRemove={() => setRows((rs) => rs.filter((x) => x.rowId !== r.rowId))} />
             ))}
             <Button title="Add part" kind="secondary" onPress={addRow} />
           </>

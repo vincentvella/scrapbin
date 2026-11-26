@@ -1,13 +1,15 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Chip } from '@/components/ui';
+import { Segmented } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import type { Part, ReviewItem } from '@/lib/db';
 import { exactMatch, similarParts } from '@/lib/parts';
 
 type Target = ReviewItem['target'];
 type Props = { item: ReviewItem; inventory: Part[]; onChange: (target: Target) => void };
+
+const NEW = -1; // the "New part" option's value
 
 /**
  * Where a reviewed row goes: into a part it exactly matches, into a similar part the person picks
@@ -31,40 +33,35 @@ export function MatchPicker({ item, inventory, onChange }: Props) {
       ) : (
         <>
           <ThemedText type="small" themeColor="textSecondary">
-            Similar in your inventory:
+            Looks like something you already have. Save as:
           </ThemedText>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            <Chip label="Keep separate" selected={!chosen} onPress={() => onChange(undefined)} />
-            {similar.map((p) => (
-              <Chip
-                key={p.id}
-                label={`${p.name} · have ${p.quantity}`}
-                selected={chosen?.id === p.id}
-                onPress={() => onChange({ partId: p.id, mode: 'add' })}
-              />
-            ))}
-          </ScrollView>
+          <Segmented
+            label="Save as"
+            vertical
+            value={chosen?.id ?? NEW}
+            onChange={(id) => onChange(id === NEW ? undefined : { partId: id, mode: 'add' })}
+            options={[
+              { value: NEW, label: 'A new part' },
+              ...similar.map((p) => ({ value: p.id, label: `Add to ${p.name} (have ${p.quantity})` })),
+            ]}
+          />
         </>
       )}
       {chosen && (
-        <View style={styles.chips}>
-          <Chip
-            label={`Add ${item.quantity} (→ ${chosen.quantity + item.quantity})`}
-            selected={mode === 'add'}
-            onPress={() => onChange({ partId: chosen.id, mode: 'add' })}
-          />
-          <Chip
-            label={`Replace count (→ ${item.quantity})`}
-            selected={mode === 'set'}
-            onPress={() => onChange({ partId: chosen.id, mode: 'set' })}
-          />
-        </View>
+        <Segmented
+          label={`Count for ${chosen.name}`}
+          value={mode}
+          onChange={(m) => onChange({ partId: chosen.id, mode: m })}
+          options={[
+            { value: 'add', label: `Add ${item.quantity} (→ ${chosen.quantity + item.quantity})` },
+            { value: 'set', label: `Replace with ${item.quantity}` },
+          ]}
+        />
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: Spacing.one },
-  chips: { flexDirection: 'row', gap: Spacing.one },
+  wrap: { gap: Spacing.two },
 });

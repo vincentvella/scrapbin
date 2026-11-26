@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 
-import { exactMatch, parseDetectedParts, partKey, saveSummary, similarParts } from './parts';
+import { defaultTarget, exactMatch, parseDetectedParts, partKey, saveSummary, similarParts } from './parts';
 
 test('partKey treats spelling variants as the same part', () => {
   const a = partKey({ category: 'resistor', name: 'Resistor', value: '10kΩ', package: 'Axial' });
@@ -63,4 +63,13 @@ test('similarParts finds the same thing worded differently, never a different va
   const r10k = { category: 'resistor', name: 'Resistor, metal film', value: '10K ohm' };
   expect(similarParts(r10k, inv).map((p) => p.id)).toEqual([4]);
   expect(exactMatch({ category: 'resistor', name: 'Metal film resistor', value: '10K ohm' }, inv)?.id).toBe(4);
+});
+
+test('defaultTarget pre-selects only a similar part with the identical name', () => {
+  const inv = [
+    { id: 1, category: 'switch', name: '4x4 membrane matrix keypad', value: null, package: '16-key membrane, ribbon cable' },
+    { id: 2, category: 'switch', name: 'Membrane keypad 3x4', value: null, package: null },
+  ];
+  expect(defaultTarget({ category: 'switch', name: '4x4 Membrane Matrix Keypad', package: '8-pin ribbon' }, inv)).toEqual({ partId: 1, mode: 'add' });
+  expect(defaultTarget({ category: 'switch', name: 'Membrane keypad 4x4' }, inv)).toBeUndefined(); // similar, but worded differently
 });

@@ -131,3 +131,9 @@ export function similarParts<P extends PartLike>(item: PartLike, inventory: P[],
     .slice(0, limit)
     .map((x) => x.p);
 }
+
+/** The match to pre-select: a similar part with the identical name (only details like the package differ). */
+export function defaultTarget<P extends PartLike & { id: number }>(item: PartLike, inventory: P[]) {
+  const same = similarParts(item, inventory).find((p) => norm(p.name) === norm(item.name));
+  return same ? { partId: same.id, mode: 'add' as const } : undefined;
+}
