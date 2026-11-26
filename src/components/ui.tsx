@@ -1,4 +1,4 @@
-import { ActivityIndicator, Platform, Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -85,16 +85,12 @@ type SegmentedProps<T extends string | number> = {
   vertical?: boolean;
 };
 
-// Basalt (macOS) doesn't route an accessibility press to radio-role views, so VoiceOver couldn't pick an option;
-// there the options are buttons with a selected state, which VoiceOver reads as "selected".
-const RADIOS_WORK = (Platform.OS as string) !== 'macos';
-
 /** One choice out of a few, as a single control: exactly one option is selected (a radio group). */
 export function Segmented<T extends string | number>({ label, options, value, onChange, vertical }: SegmentedProps<T>) {
   const theme = useTheme();
   return (
     <View
-      accessibilityRole={RADIOS_WORK ? 'radiogroup' : undefined}
+      accessibilityRole="radiogroup"
       accessibilityLabel={label}
       style={[styles.segmented, vertical && styles.segmentedVertical, { borderColor: theme.backgroundSelected, backgroundColor: theme.background }]}>
       {options.map((o) => {
@@ -103,9 +99,9 @@ export function Segmented<T extends string | number>({ label, options, value, on
         return (
           <Pressable
             key={String(o.value)}
-            accessibilityRole={RADIOS_WORK ? 'radio' : 'button'}
+            accessibilityRole="radio"
             accessibilityLabel={o.label}
-            accessibilityState={RADIOS_WORK ? { checked: selected } : { selected }}
+            accessibilityState={{ checked: selected }}
             onPress={press}
             onAccessibilityTap={press}
             style={[styles.segment, !vertical && styles.segmentFlex, selected && { backgroundColor: ACCENT }]}>
