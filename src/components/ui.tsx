@@ -1,4 +1,4 @@
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -13,9 +13,10 @@ type ButtonProps = {
   kind?: 'primary' | 'secondary' | 'danger';
   disabled?: boolean;
   busy?: boolean;
+  size?: 'regular' | 'small';
 };
 
-export function Button({ title, onPress, kind = 'primary', disabled, busy }: ButtonProps) {
+export function Button({ title, onPress, kind = 'primary', disabled, busy, size = 'regular' }: ButtonProps) {
   const theme = useTheme();
   const bg = kind === 'primary' ? ACCENT : kind === 'danger' ? DANGER : theme.backgroundElement;
   const fg = kind === 'secondary' ? theme.text : '#fff';
@@ -27,8 +28,8 @@ export function Button({ title, onPress, kind = 'primary', disabled, busy }: But
       disabled={disabled || busy}
       onPress={onPress}
       onAccessibilityTap={disabled || busy ? undefined : onPress} // Basalt: lets VoiceOver/AXPress activate it
-      style={({ pressed }) => [styles.button, { backgroundColor: bg, opacity: disabled ? 0.4 : pressed ? 0.7 : 1 }]}>
-      {busy ? <ActivityIndicator color={fg} /> : <ThemedText style={{ color: fg, fontWeight: 600 }}>{title}</ThemedText>}
+      style={({ pressed }) => [styles.button, size === 'small' && styles.buttonSmall, { backgroundColor: bg, opacity: disabled ? 0.4 : pressed ? 0.7 : 1 }]}>
+      {busy ? <ActivityIndicator color={fg} /> : <ThemedText type={size === 'small' ? 'small' : 'default'} style={{ color: fg, fontWeight: 600 }}>{title}</ThemedText>}
     </Pressable>
   );
 }
@@ -55,7 +56,7 @@ export function Chip({ label, selected, onPress, accessibilityLabel }: ChipProps
       accessibilityState={{ selected }}
       onPress={onPress}
       onAccessibilityTap={onPress}
-      style={[styles.chip, { backgroundColor: selected ? ACCENT : theme.backgroundElement }]}>
+      style={[styles.chip, { backgroundColor: selected ? ACCENT : theme.backgroundSelected }]}>
       <ThemedText type="small" style={selected && { color: '#fff' }}>
         {label}
       </ThemedText>
@@ -84,12 +85,16 @@ type SegmentedProps<T extends string | number> = {
   vertical?: boolean;
 };
 
+// Basalt (macOS) doesn't route an accessibility press to radio-role views, so VoiceOver couldn't pick an option;
+// there the options are buttons with a selected state, which VoiceOver reads as "selected".
+const RADIOS_WORK = (Platform.OS as string) !== 'macos';
+
 /** One choice out of a few, as a single control: exactly one option is selected (a radio group). */
 export function Segmented<T extends string | number>({ label, options, value, onChange, vertical }: SegmentedProps<T>) {
   const theme = useTheme();
   return (
     <View
-      accessibilityRole="radiogroup"
+      accessibilityRole={RADIOS_WORK ? 'radiogroup' : undefined}
       accessibilityLabel={label}
       style={[styles.segmented, vertical && styles.segmentedVertical, { borderColor: theme.backgroundSelected, backgroundColor: theme.background }]}>
       {options.map((o) => {
@@ -98,9 +103,9 @@ export function Segmented<T extends string | number>({ label, options, value, on
         return (
           <Pressable
             key={String(o.value)}
-            accessibilityRole="radio"
+            accessibilityRole={RADIOS_WORK ? 'radio' : 'button'}
             accessibilityLabel={o.label}
-            accessibilityState={{ checked: selected }}
+            accessibilityState={RADIOS_WORK ? { checked: selected } : { selected }}
             onPress={press}
             onAccessibilityTap={press}
             style={[styles.segment, !vertical && styles.segmentFlex, selected && { backgroundColor: ACCENT }]}>
@@ -122,6 +127,7 @@ const styles = StyleSheet.create({
   segmentText: { lineHeight: 18 },
   centered: { textAlign: 'center' },
   button: { borderRadius: 12, paddingVertical: 14, paddingHorizontal: Spacing.three, alignItems: 'center' },
+  buttonSmall: { borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12 },
   field: { borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
   chip: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, minWidth: 36, alignItems: 'center' },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },

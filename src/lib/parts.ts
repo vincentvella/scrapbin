@@ -91,7 +91,8 @@ export function parseDetectedParts(raw: string): DetectedPart[] {
 }
 
 // Thousands by hand: Basalt's Hermes may be built without Intl.
-const plural = (n: number, word: string) => `${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')} ${word}${n === 1 ? '' : 's'}`;
+export const formatCount = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const plural = (n: number, word: string) => `${formatCount(n)} ${word}${n === 1 ? '' : 's'}`;
 
 /** The rows a save will actually store, and the button label that counts them (kinds and units). */
 export function saveSummary<T extends { name: string; quantity: number }>(rows: T[]) {
@@ -137,3 +138,20 @@ export function defaultTarget<P extends PartLike & { id: number }>(item: PartLik
   const same = similarParts(item, inventory).find((p) => norm(p.name) === norm(item.name));
   return same ? { partId: same.id, mode: 'add' as const } : undefined;
 }
+
+/** Display names for category headings. */
+export const CATEGORY_LABELS: Record<Category, string> = {
+  resistor: 'Resistors',
+  capacitor: 'Capacitors',
+  IC: 'ICs',
+  LED: 'LEDs',
+  transistor: 'Transistors',
+  diode: 'Diodes',
+  inductor: 'Inductors',
+  connector: 'Connectors',
+  module: 'Modules',
+  sensor: 'Sensors',
+  switch: 'Switches',
+  hardware: 'Hardware',
+  other: 'Other',
+};

@@ -44,7 +44,7 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "lint": "eslint src",
+    "lint": "eslint src desktop/App.tsx desktop/src",
     "typecheck": "tsc --noEmit && tsc --noEmit -p server && tsc --noEmit -p desktop",
     "test": "bun test"
   },

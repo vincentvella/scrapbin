@@ -1,28 +1,25 @@
 import { DropTarget, useDialog, useWindow } from 'basalt-core';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { ACCENT, Button, Field } from '@/components/ui';
+import { ACCENT } from '@/components/ui';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { Part, Scan } from '@/lib/db';
+import type { Category } from '@/lib/parts';
 
 import { IdeasPanel } from './src/ideas-panel';
 import { PartPanel } from './src/part-panel';
 import { ScanPanel } from './src/scan-panel';
+import { Overview } from './src/overview';
 import { useServer, type Api } from './src/server';
+import { Sidebar, type QueuedScan, type Selection } from './src/sidebar';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'heic', 'heif', 'webp', 'tiff', 'gif'];
 const isImage = (path: string) => IMAGE_EXTENSIONS.includes(path.split('.').pop()?.toLowerCase() ?? '');
 
-/** A scan as the server lists it: `analyzing` while Claude Code is on it. */
-type QueuedScan = Scan & { analyzing?: boolean };
-
-const SCAN_LABEL = { pending: 'Queued', analyzed: 'Ready to review', failed: 'Failed', saved: 'Saved' } as const;
-
-export type Selection = { kind: 'part' | 'scan'; id: number } | { kind: 'ideas' } | null;
 
 export default function App() {
   const server = useServer();
@@ -66,6 +63,7 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
   const theme = useTheme();
   const dialog = useDialog();
   const [search, setSearch] = useState('');
+  const [category, setCategory] = useState<Category | null>(null);
   const [parts, setParts] = useState<Part[]>([]);
   const [scans, setScans] = useState<QueuedScan[]>([]);
   const [selection, setSelection] = useState<Selection>(null);
@@ -82,7 +80,9 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
   }, [api, search]);
 
   useEffect(() => {
-    refresh().catch((e) => Alert.alert('Could not load the inventory', String(e?.message ?? e)));
+    // A failed load is transient (the server is restarting); useServer hands us a new api and this runs again.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- refresh() sets state after an awaited fetch, not synchronously
+    refresh().catch(() => {});
   }, [refresh]);
 
   // While the server works through a batch, refresh so the list shows each scan as it finishes.
@@ -124,8 +124,6 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
     if (!canceled && paths?.length) await addPhotos(paths);
   }
 
-  const total = parts.reduce((n, p) => n + p.quantity, 0);
-
   return (
     <DropTarget
       accepts={['files']}
@@ -136,60 +134,18 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
         setDragging(false);
         addPhotos(files);
       }}>
-      <View style={[styles.sidebar, { borderColor: theme.backgroundSelected }]}>
-        <View style={styles.sideHeader}>
-          <ThemedText type="subtitle" style={styles.brand}>
-            Scrapbin
-          </ThemedText>
-          <Button title="Add photos…" onPress={choosePhotos} />
-          <Row
-            title="Project ideas"
-            subtitle={ideaCount ? `${ideaCount} saved` : 'Brainstorm from your parts'}
-            selected={selection?.kind === 'ideas'}
-            onPress={() => setSelection({ kind: 'ideas' })}
-          />
-          <Field accessibilityLabel="Search parts" placeholder="Search parts" value={search} onChangeText={setSearch} />
-          <ThemedText type="small" themeColor="textSecondary">
-            {parts.length} {parts.length === 1 ? 'kind' : 'kinds'} · {total} {total === 1 ? 'part' : 'parts'}
-          </ThemedText>
-        </View>
-        <ScrollView contentContainerStyle={styles.list}>
-          {scans.length > 0 && (
-            <>
-              <ThemedText type="smallBold" style={styles.section}>
-                Unfinished scans
-              </ThemedText>
-              {scans.map((s) => (
-                <Row
-                  key={`s${s.id}`}
-                  title={s.analyzing ? 'Analyzing…' : SCAN_LABEL[s.status]}
-                  subtitle={new Date(s.created_at).toLocaleString()}
-                  selected={selection?.kind === 'scan' && selection.id === s.id}
-                  onPress={() => setSelection({ kind: 'scan', id: s.id })}
-                />
-              ))}
-              <ThemedText type="smallBold" style={styles.section}>
-                Parts
-              </ThemedText>
-            </>
-          )}
-          {parts.map((p) => (
-            <Row
-              key={`p${p.id}`}
-              title={p.name}
-              subtitle={[p.category, p.value, p.package].filter(Boolean).join(' · ')}
-              trailing={String(p.quantity)}
-              selected={selection?.kind === 'part' && selection.id === p.id}
-              onPress={() => setSelection({ kind: 'part', id: p.id })}
-            />
-          ))}
-          {!parts.length && (
-            <ThemedText type="small" themeColor="textSecondary" style={styles.section}>
-              {search ? `Nothing matches “${search}”.` : 'No parts yet.'}
-            </ThemedText>
-          )}
-        </ScrollView>
-      </View>
+      <Sidebar
+        parts={parts}
+        scans={scans}
+        search={search}
+        onSearch={setSearch}
+        selection={selection}
+        onSelect={setSelection}
+        ideaCount={ideaCount}
+        onAddPhotos={choosePhotos}
+        category={category}
+        onClearCategory={() => setCategory(null)}
+      />
 
       <View style={styles.content}>
         {selection?.kind === 'ideas' ? (
@@ -213,6 +169,7 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
             id={selection.id}
             photoUrl={photoUrl}
             onOpenScan={(id) => setSelection({ kind: 'scan', id })}
+            onOpenIdeas={() => setSelection({ kind: 'ideas' })}
             onDone={() => {
               setSelection(null);
               refresh();
@@ -220,40 +177,11 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
             onChanged={refresh}
           />
         ) : (
-          <View style={styles.center}>
-            <ThemedText type="smallBold">Drop photos of your parts here</ThemedText>
-            <ThemedText themeColor="textSecondary">
-              Or use Add photos. Claude Code identifies and counts them, then you review before saving.
-            </ThemedText>
-          </View>
+          <Overview parts={parts} dragging={dragging} category={category} onPickCategory={setCategory} onAddPhotos={choosePhotos} />
         )}
       </View>
       {dragging && <View pointerEvents="none" style={[styles.dropOverlay, { borderColor: ACCENT }]} />}
     </DropTarget>
-  );
-}
-
-type RowProps = { title: string; subtitle?: string; trailing?: string; selected: boolean; onPress: () => void };
-
-function Row({ title, subtitle, trailing, selected, onPress }: RowProps) {
-  const theme = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={trailing ? `${title}, ${trailing}` : title}
-      onPress={onPress}
-      onAccessibilityTap={onPress}
-      style={[styles.row, selected && { backgroundColor: theme.backgroundSelected }]}>
-      <View style={styles.flex}>
-        <ThemedText numberOfLines={1}>{title}</ThemedText>
-        {!!subtitle && (
-          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-            {subtitle}
-          </ThemedText>
-        )}
-      </View>
-      {!!trailing && <ThemedText style={styles.qty}>{trailing}</ThemedText>}
-    </Pressable>
   );
 }
 
