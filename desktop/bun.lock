@@ -4,9 +4,9 @@
     "": {
       "name": "desktop",
       "dependencies": {
-        "basalt-appkit": "^0.2.9",
-        "basalt-core": "^0.2.9",
-        "basalt-subprocess": "0.2.9",
+        "basalt-appkit": "^0.2.11",
+        "basalt-core": "^0.2.11",
+        "basalt-subprocess": "0.2.11",
         "expo": "~58.0.26",
         "expo-status-bar": "~58.0.5",
         "react": "19.3.0",
@@ -19,10 +19,6 @@
         "typescript": "~6.0.3",
       },
     },
-  },
-  "patchedDependencies": {
-    "basalt-core@0.2.9": "patches/basalt-core@0.2.9.patch",
-    "basalt-appkit@0.2.9": "patches/basalt-appkit@0.2.9.patch",
   },
   "packages": {
     "2g": ["2g@1.0.1", "", { "peerDependencies": { "typescript": ">=5.8.0" }, "optionalPeers": ["typescript"], "bin": { "2g": "bin/cli.js" } }, "sha512-+uViadKOS/wwR4pFu5g8TPn3QHpKqoX19JHCnp8k/3cLpImdcXozwvZA6Q/5PeW3AcU8neL8faaMidBcv7o8CA=="],
@@ -415,11 +411,11 @@
 
     "balanced-match": ["balanced-match@4.0.4", "", {}, "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA=="],
 
-    "basalt-appkit": ["basalt-appkit@0.2.9", "", { "dependencies": { "basalt-core": "0.2.9" }, "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-ixW+BP6f6vCKA76ZLqXGk0fM/vaLZwfHoqcW+BmZTe+jlmwy9AIEma5ipjfWtEtuflJCacw9X9v0UsrBKrKUkQ=="],
+    "basalt-appkit": ["basalt-appkit@0.2.11", "", { "dependencies": { "basalt-core": "0.2.11" }, "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-9GUs8paVnFBH3TDL+89ttn0W/o5RDynQpnSxrTt8wVb42v1tkLBBme8QTadrlLdaRjEbZ0cEtaP+6hMRwK+GFg=="],
 
-    "basalt-core": ["basalt-core@0.2.9", "", { "dependencies": { "@babel/runtime": "^7.25.0" }, "peerDependencies": { "react": "*", "react-native": "*" }, "bin": { "basalt": "dist/cli/basalt.js", "basalt-core": "dist/cli/basalt.js", "basalt-bundle": "dist/cli/bundle-cli.js" } }, "sha512-+DotivgqGtm8DC7NHT7M0asiZ9f+CXNXQMjAL74gg2PZ3sKE5gsdtzgrHq5n4GY6yP/bo1eKwJ4kBkZZn2hDNw=="],
+    "basalt-core": ["basalt-core@0.2.11", "", { "dependencies": { "@babel/runtime": "^7.25.0" }, "peerDependencies": { "react": "*", "react-native": "*" }, "bin": { "basalt": "dist/cli/basalt.js", "basalt-core": "dist/cli/basalt.js", "basalt-bundle": "dist/cli/bundle-cli.js" } }, "sha512-kRYAODjIJ0mRb0iKSGJdDEqM62I4qu97jQFIJ9VHa8TsdEJskKiDmy1DTSP5Lho7OukuxG3vxSdbdW0R0KIhPA=="],
 
-    "basalt-subprocess": ["basalt-subprocess@0.2.9", "", { "dependencies": { "basalt-core": "0.2.9" }, "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-4tu7rIb7dFBYAOk0hdVvFVr25UoPxPESgNa6+YF3VJYBAvGLGWY3/GxQzDOtGtb0jyZGuUpRR4XdnM3pfGc+8Q=="],
+    "basalt-subprocess": ["basalt-subprocess@0.2.11", "", { "dependencies": { "basalt-core": "0.2.11" }, "peerDependencies": { "react": "*", "react-native": "*" } }, "sha512-tWfQ7+0mF712EK0TSmXTC2Apu7qhhYXPbldoKIZ7uyKCEVgTq9L2A3Qt+kfnOuq5Q5G4QqRq5OTJOAIIrtUITw=="],
 
     "base64-js": ["base64-js@1.5.1", "", {}, "sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA=="],
 
