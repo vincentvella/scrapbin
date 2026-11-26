@@ -1,0 +1,26 @@
+diff --git a/native/appkit/RnAppKitView.mm b/native/appkit/RnAppKitView.mm
+index 2a89d0d8ae6fcd18b56cf6ca059e002012399cc3..76fe0b1948c4db56a02f6905ff9fc31f68f51d3a 100644
+--- a/native/appkit/RnAppKitView.mm
++++ b/native/appkit/RnAppKitView.mm
+@@ -3698,6 +3698,21 @@ - (void)describeInto:(NSMutableString *)out depth:(NSInteger)depth {
+ // would also swallow the cursor rectangles, tooltips and tracking areas any
+ // later component needs, and AppKit's own hit testing is doing no harm here.
+ 
++// Backported from basalt fix/dev-build-text-focus (drop when basalt-appkit
++// ships it): AppKit's hit testing honours pointerEvents, so a development
++// build's full-window DebuggingOverlay (inside a pointerEvents="none" View) no
++// longer takes the click an NSTextField peer needs to become first responder.
++- (NSView *)hitTest:(NSPoint)point {
++  if (self.rnPointerEvents == RnAppKitPointerEventsNone) {
++    return nil;
++  }
++  NSView *hit = [super hitTest:point];
++  if (hit == self && self.rnPointerEvents == RnAppKitPointerEventsBoxNone) {
++    return nil;
++  }
++  return hit;
++}
++
+ // Keyboard focus.
+ //
+ // AppKit's key-view loop is the chain: a view that accepts first responder

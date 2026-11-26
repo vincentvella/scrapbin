@@ -85,6 +85,31 @@ async function runAnalysis(id: number) {
   return db.getScan(sql, id);
 }
 
+// Brainstorms run in the background, like scans: POST /ideas starts one and
+// answers at once; GET /ideas/jobs lists those still running and those that
+// failed (kept until dismissed, so the error can be read). A finished one saves
+// its ideas and leaves the list.
+type Brainstorm = { id: number; request: string; started_at: string; error: string | null };
+let brainstorms: Brainstorm[] = [];
+let nextBrainstorm = 1;
+
+function startBrainstorm(request: string) {
+  const job: Brainstorm = { id: nextBrainstorm++, request, started_at: new Date().toISOString(), error: null };
+  brainstorms.push(job);
+  void (async () => {
+    try {
+      const parts = await db.listParts(sql, '');
+      const ideas = parseIdeas(await brainstormIdeas(inventoryText(parts), request), new Set(parts.map((p) => p.id)));
+      if (!ideas.length) throw new Error('Claude came back without any usable ideas. Try again or reword the request.');
+      await db.saveIdeas(sql, request, ideas);
+      brainstorms = brainstorms.filter((j) => j.id !== job.id);
+    } catch (e) {
+      job.error = e instanceof Error ? e.message : String(e);
+    }
+  })();
+  return job;
+}
+
 // Background queue: analyze pending scans oldest first, two at a time (Claude Code handles that fine,
 // and it halves a batch's wait). A scan you open jumps the queue anyway.
 const CONCURRENCY = 2;
@@ -129,6 +154,13 @@ const server = Bun.serve({
     const token = req.headers.get('x-scrapbin-token') ?? (url.pathname.startsWith('/photos/') ? url.searchParams.get('token') : null);
     if (token !== TOKEN) return fail('unauthorized', 401);
     lastSeen = Date.now();
+
+    if (url.pathname === '/ideas/jobs' && req.method === 'GET') return json(brainstorms);
+    const dismiss = url.pathname.match(/^\/ideas\/jobs\/(\d+)$/);
+    if (dismiss && req.method === 'DELETE') {
+      brainstorms = brainstorms.filter((j) => j.id !== Number(dismiss[1]));
+      return json({ ok: true });
+    }
 
     const parts = url.pathname.split('/').filter(Boolean);
     const id = Number(parts[1]);
@@ -177,12 +209,8 @@ const server = Bun.serve({
           return json(await db.listIdeas(sql));
         case 'POST /ideas': {
           const request = str(((await req.json()) as { request?: unknown }).request) ?? '';
-          const parts = await db.listParts(sql, '');
-          if (!parts.length) return fail('Your inventory is empty. Scan some parts first.');
-          const ideas = parseIdeas(await brainstormIdeas(inventoryText(parts), request), new Set(parts.map((p) => p.id)));
-          if (!ideas.length) return fail('Claude came back without any usable ideas. Try again or reword the request.', 502);
-          await db.saveIdeas(sql, request, ideas);
-          return json(await db.listIdeas(sql));
+          if (!(await db.listParts(sql, '')).length) return fail('Your inventory is empty. Scan some parts first.');
+          return json(startBrainstorm(request), 202);
         }
         case 'DELETE /ideas/:id':
           await db.deleteIdea(sql, id);

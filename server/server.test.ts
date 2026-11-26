@@ -15,7 +15,7 @@ beforeAll(async () => {
   const ideas = { structured_output: { ideas: [{ title: 'Blinky', summary: 'Blinks.', difficulty: 'easy', hours: 1, uses: [{ partId: 1, quantity: 1, role: 'timer' }, { partId: 42, quantity: 1, role: 'made up' }], missing: [], steps: ['Wire it'] }] } };
   // Answers brainstorms (their schema mentions "ideas") and photo scans differently; a scan takes 1s, longer than an upload,
   // so a batch's analyses overlap.
-  writeFileSync(fake, `#!/bin/sh\ncase "$*" in *'"ideas"'*) echo '${JSON.stringify(ideas)}';; *) sleep 1; echo '${JSON.stringify(out)}';; esac\n`);
+  writeFileSync(fake, `#!/bin/sh\ncase "$*" in *'nothing usable'*) echo '{"structured_output":{"ideas":[]}}';; *'"ideas"'*) echo '${JSON.stringify(ideas)}';; *) sleep 1; echo '${JSON.stringify(out)}';; esac\n`);
   chmodSync(fake, 0o755);
   // A real image for sips to convert.
   Bun.spawnSync(['sips', '-s', 'format', 'png', '/System/Library/Desktop Pictures/Mac Blue.heic', '--out', join(dir, 'in.png')]);
@@ -73,14 +73,25 @@ test('a bad path fails cleanly', async () => {
   expect(((await r.json()) as any).error).toContain('No file');
 });
 
-test('brainstorm ideas from the inventory, keep and delete them', async () => {
-  const list = await body(call('/ideas', { method: 'POST', body: JSON.stringify({ request: 'something blinky' }) }));
+test('a brainstorm runs in the background, saves its ideas, and can be deleted', async () => {
+  const job = await body(call('/ideas', { method: 'POST', body: JSON.stringify({ request: 'something blinky' }) }));
+  expect(job).toMatchObject({ request: 'something blinky', error: null });
+  // Answered before Claude finished: the job is listed as running.
+  expect((await body(call('/ideas/jobs'))).map((j: { id: number }) => j.id)).toContain(job.id);
+
+  let list: any[] = [];
+  for (let i = 0; i < 100 && !list.length; i++) {
+    list = await body(call('/ideas'));
+    if (!list.length) await Bun.sleep(50);
+  }
   expect(list).toHaveLength(1);
   expect(list[0]).toMatchObject({ title: 'Blinky', request: 'something blinky' });
   expect(list[0].uses).toEqual([{ partId: 1, quantity: 1, role: 'timer' }]); // the invented part #42 is dropped
+  expect(await body(call('/ideas/jobs'))).toEqual([]); // done, so gone
   await call(`/ideas/${list[0].id}`, { method: 'DELETE' });
   expect(await body(call('/ideas'))).toHaveLength(0);
 });
+
 
 test('a batch of photos is analyzed in the background, two at a time', async () => {
   const ids: number[] = [];
@@ -95,5 +106,18 @@ test('a batch of photos is analyzed in the background, two at a time', async () 
   }
   expect(scans.map((s) => s.status)).toEqual(Array(5).fill('analyzed')); // nobody called /analyze
   expect(mostAtOnce).toBe(2);
+});
+
+test('a brainstorm that finds nothing stays listed with its error until dismissed', async () => {
+  const job = await body(call('/ideas', { method: 'POST', body: JSON.stringify({ request: 'nothing usable' }) }));
+  let jobs: any[] = [];
+  for (let i = 0; i < 100; i++) {
+    jobs = await body(call('/ideas/jobs'));
+    if (jobs.find((j) => j.id === job.id)?.error) break;
+    await Bun.sleep(50);
+  }
+  expect(jobs.find((j) => j.id === job.id)?.error).toContain('without any usable ideas');
+  await call(`/ideas/jobs/${job.id}`, { method: 'DELETE' });
+  expect((await body(call('/ideas/jobs'))).find((j: { id: number }) => j.id === job.id)).toBeUndefined();
 });
 

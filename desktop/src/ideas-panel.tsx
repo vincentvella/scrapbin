@@ -38,37 +38,51 @@ export function DifficultyPill({ difficulty }: { difficulty: SavedIdea['difficul
   );
 }
 
+/** A brainstorm the server is running (or that failed; then `error` says why). */
+export type BrainstormJob = { id: number; request: string; started_at: string; error: string | null };
+
 type BrainstormProps = {
   api: Api;
   ideas: SavedIdea[];
+  jobs: BrainstormJob[];
+  newIds: Set<number>;
   inventory: Map<number, Part>;
-  onIdeas: (ideas: SavedIdea[]) => void;
+  onChanged: () => void;
   onOpenIdea: (id: number) => void;
 };
 
-/** Ask Claude Code for project ideas built from the inventory. */
-export function BrainstormPanel({ api, ideas, inventory, onIdeas, onOpenIdea }: BrainstormProps) {
+const since = (iso: string) => {
+  const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000));
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+};
+
+/** Ask Claude Code for project ideas built from the inventory. Runs in the background; leave whenever you like. */
+export function BrainstormPanel({ api, ideas, jobs, newIds, inventory, onChanged, onOpenIdea }: BrainstormProps) {
   const theme = useTheme();
   const [request, setRequest] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [fresh, setFresh] = useState<number[]>([]);
+  const [starting, setStarting] = useState(false);
 
-  async function brainstorm() {
-    setBusy(true);
+  async function start(text: string) {
+    setStarting(true);
     try {
-      const before = new Set(ideas.map((i) => i.id));
-      const list = await api<SavedIdea[]>('/ideas', { method: 'POST', body: { request } });
-      setFresh(list.filter((i) => !before.has(i.id)).map((i) => i.id));
-      onIdeas(list);
+      await api('/ideas', { method: 'POST', body: { request: text } });
       setRequest('');
+      onChanged();
     } catch (e) {
-      Alert.alert('Brainstorm failed', e instanceof Error ? e.message : String(e));
+      Alert.alert('Could not start the brainstorm', e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(false);
+      setStarting(false);
     }
   }
 
-  const shown = ideas.filter((i) => fresh.includes(i.id));
+  async function dismiss(id: number) {
+    await api(`/ideas/jobs/${id}`, { method: 'DELETE' }).catch(() => {});
+    onChanged();
+  }
+
+  const running = jobs.filter((j) => !j.error);
+  const failed = jobs.filter((j) => j.error);
+  const fresh = ideas.filter((i) => newIds.has(i.id));
 
   return (
     <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
@@ -77,7 +91,7 @@ export function BrainstormPanel({ api, ideas, inventory, onIdeas, onOpenIdea }: 
       </ThemedText>
       <ThemedText themeColor="textSecondary">
         Claude Code reads your whole inventory and suggests projects you can build with it, with up to three cheap extras to buy
-        and build steps. Ideas are saved in the sidebar until you delete them.
+        and build steps. It runs in the background, so carry on while it works; new ideas appear in the sidebar.
       </ThemedText>
       <View style={styles.ask}>
         <Field
@@ -85,21 +99,44 @@ export function BrainstormPanel({ api, ideas, inventory, onIdeas, onOpenIdea }: 
           placeholder="What do you want to build? (optional: “something for my desk”, “no soldering”)"
           value={request}
           onChangeText={setRequest}
-          onSubmitEditing={brainstorm}
+          onSubmitEditing={() => start(request)}
           style={styles.flex}
         />
-        <Button title="Brainstorm" busy={busy} onPress={brainstorm} />
+        <Button title="Brainstorm" busy={starting} onPress={() => start(request)} />
       </View>
-      {busy && (
-        <View style={styles.inline}>
+
+      {running.map((j) => (
+        <View key={j.id} style={[styles.job, { backgroundColor: theme.backgroundElement }]}>
           <ActivityIndicator />
-          <ThemedText themeColor="textSecondary">Claude Code is reading your inventory… this takes a minute or two.</ThemedText>
+          <ThemedText type="small" style={styles.flex}>
+            Brainstorming{j.request ? ` “${j.request}”` : ''}… {since(j.started_at)} so far (usually a minute or two)
+          </ThemedText>
         </View>
-      )}
-      {shown.length > 0 && (
+      ))}
+      {failed.map((j) => (
+        <View key={j.id} style={[styles.job, { backgroundColor: theme.backgroundElement }]}>
+          <View style={styles.flex}>
+            <ThemedText type="small" style={{ color: DANGER }}>
+              Brainstorm{j.request ? ` “${j.request}”` : ''} failed: {j.error}
+            </ThemedText>
+          </View>
+          <Button
+            title="Retry"
+            kind="secondary"
+            size="small"
+            onPress={() => {
+              dismiss(j.id);
+              start(j.request);
+            }}
+          />
+          <Button title="Dismiss" kind="secondary" size="small" onPress={() => dismiss(j.id)} />
+        </View>
+      ))}
+
+      {fresh.length > 0 && (
         <View style={styles.gap}>
           <ThemedText type="smallBold">New ideas</ThemedText>
-          {shown.map((idea) => (
+          {fresh.map((idea) => (
             <Pressable
               key={idea.id}
               accessibilityRole="button"
@@ -232,6 +269,7 @@ const styles = StyleSheet.create({
   ask: { flexDirection: 'row', gap: Spacing.two, alignItems: 'center' },
   inline: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   gap: { gap: Spacing.two },
+  job: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.three, borderRadius: 12 },
   card: { borderRadius: 12, padding: Spacing.three, gap: Spacing.one },
   titleLine: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, flexWrap: 'wrap' },
   cardTitle: { fontSize: 17, lineHeight: 24 },

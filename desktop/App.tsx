@@ -1,5 +1,5 @@
 import { DropTarget, useDialog, useWindow } from 'basalt-core';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -10,7 +10,7 @@ import { useTheme } from '@/hooks/use-theme';
 import type { Part, SavedIdea, Scan } from '@/lib/db';
 import type { Category } from '@/lib/parts';
 
-import { BrainstormPanel, IdeaDetail } from './src/ideas-panel';
+import { BrainstormPanel, IdeaDetail, type BrainstormJob } from './src/ideas-panel';
 import { PartPanel } from './src/part-panel';
 import { ScanPanel } from './src/scan-panel';
 import { Overview } from './src/overview';
@@ -68,15 +68,32 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
   const [parts, setParts] = useState<Part[]>([]);
   const [scans, setScans] = useState<QueuedScan[]>([]);
   const [ideas, setIdeas] = useState<SavedIdea[]>([]);
+  const [jobs, setJobs] = useState<BrainstormJob[]>([]);
+  // Ideas that arrived while the app was open and haven't been opened yet.
+  const [newIds, setNewIds] = useState<Set<number>>(new Set());
+  const seen = useRef<Set<number> | null>(null);
   const [selection, setSelection] = useState<Selection>(null);
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [dragging, setDragging] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [p, s, i] = await Promise.all([api<Part[]>('/parts?search='), api<QueuedScan[]>('/scans'), api<SavedIdea[]>('/ideas')]);
+    const [p, s, i, j] = await Promise.all([
+      api<Part[]>('/parts?search='),
+      api<QueuedScan[]>('/scans'),
+      api<SavedIdea[]>('/ideas'),
+      api<BrainstormJob[]>('/ideas/jobs'),
+    ]);
     setParts(p);
     setScans(s);
     setIdeas(i);
+    setJobs(j);
+    // The first load is what was already there; anything after it is new.
+    if (seen.current === null) seen.current = new Set(i.map((idea) => idea.id));
+    const arrived = i.filter((idea) => !seen.current!.has(idea.id)).map((idea) => idea.id);
+    if (arrived.length) {
+      arrived.forEach((id) => seen.current!.add(id));
+      setNewIds((prev) => new Set([...prev, ...arrived]));
+    }
   }, [api]);
 
   useEffect(() => {
@@ -85,13 +102,26 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
     refresh().catch(() => {});
   }, [refresh]);
 
-  // While the server works through a batch, refresh so the list shows each scan as it finishes.
-  const working = scans.some((s) => s.status === 'pending' || s.analyzing);
+  // While the server works through a batch of scans or a brainstorm, refresh so each result shows up as it lands.
+  const working = scans.some((s) => s.status === 'pending' || s.analyzing) || jobs.some((j) => !j.error);
   useEffect(() => {
     if (!working) return;
     const timer = setInterval(() => refresh().catch(() => {}), 3000);
     return () => clearInterval(timer);
   }, [working, refresh]);
+
+  // Every navigation goes through here; opening an idea is what makes it no longer new.
+  const select = useCallback((next: Selection) => {
+    setSelection(next);
+    if (next?.kind === 'idea') {
+      setNewIds((prev) => {
+        if (!prev.has(next.id)) return prev;
+        const rest = new Set(prev);
+        rest.delete(next.id);
+        return rest;
+      });
+    }
+  }, []);
 
   const inventory = useMemo(() => new Map(parts.map((p) => [p.id, p])), [parts]);
   const openIdea = selection?.kind === 'idea' ? ideas.find((i) => i.id === selection.id) ?? null : null;
@@ -139,7 +169,7 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
         setDragging(false);
         addPhotos(files);
       }}>
-      <ProjectsSidebar ideas={ideas} selection={selection} onSelect={setSelection} />
+      <ProjectsSidebar ideas={ideas} running={jobs.filter((j) => !j.error).length} newIds={newIds} selection={selection} onSelect={select} />
 
       <View style={styles.content}>
         {!drawerOpen && (
@@ -151,9 +181,11 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
           <BrainstormPanel
             api={api}
             ideas={ideas}
+            jobs={jobs}
+            newIds={newIds}
             inventory={inventory}
-            onIdeas={setIdeas}
-            onOpenIdea={(id) => setSelection({ kind: 'idea', id })}
+            onChanged={() => refresh().catch(() => {})}
+            onOpenIdea={(id) => select({ kind: 'idea', id })}
           />
         ) : openIdea ? (
           <IdeaDetail
@@ -161,7 +193,7 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
             api={api}
             idea={openIdea}
             inventory={inventory}
-            onOpenPart={(id) => setSelection({ kind: 'part', id })}
+            onOpenPart={(id) => select({ kind: 'part', id })}
             onDeleted={backHome}
           />
         ) : selection?.kind === 'scan' ? (
@@ -172,8 +204,8 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
             api={api}
             id={selection.id}
             photoUrl={photoUrl}
-            onOpenScan={(id) => setSelection({ kind: 'scan', id })}
-            onOpenIdea={(id) => setSelection({ kind: 'idea', id })}
+            onOpenScan={(id) => select({ kind: 'scan', id })}
+            onOpenIdea={(id) => select({ kind: 'idea', id })}
             onDone={backHome}
             onChanged={refresh}
           />
@@ -189,7 +221,7 @@ function Main({ api, photoUrl }: { api: Api; photoUrl: (rel: string) => string }
           search={search}
           onSearch={setSearch}
           selection={selection}
-          onSelect={setSelection}
+          onSelect={select}
           onAddPhotos={choosePhotos}
           onHide={() => setDrawerOpen(false)}
           category={category}

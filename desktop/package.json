@@ -25,6 +25,7 @@
   },
   "private": true,
   "patchedDependencies": {
-    "basalt-core@0.2.9": "patches/basalt-core@0.2.9.patch"
+    "basalt-core@0.2.9": "patches/basalt-core@0.2.9.patch",
+    "basalt-appkit@0.2.9": "patches/basalt-appkit@0.2.9.patch"
   }
 }
